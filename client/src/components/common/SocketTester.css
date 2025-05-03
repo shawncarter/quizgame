@@ -1,0 +1,151 @@
+.socket-tester {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 15px;
+  margin: 15px 0;
+  max-width: 500px;
+  background-color: #f9f9f9;
+}
+
+.socket-tester h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.connection-status {
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.connection-status .connected {
+  color: green;
+  font-weight: bold;
+}
+
+.connection-status .disconnected {
+  color: red;
+  font-weight: bold;
+}
+
+.namespace-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.namespace-form input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.namespace-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 8px;
+  background-color: #e0f0ff;
+  border-radius: 4px;
+}
+
+.namespace-status {
+  font-style: italic;
+  color: #555;
+  margin-left: 5px;
+}
+
+.test-commands {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.disconnect-btn {
+  padding: 4px 8px;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.disconnect-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.messages-container {
+  height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 15px;
+  background-color: white;
+}
+
+.no-messages {
+  color: #999;
+  text-align: center;
+  padding: 20px;
+}
+
+.message {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  max-width: 80%;
+}
+
+.message.sent {
+  background-color: #dcf8c6;
+  margin-left: auto;
+}
+
+.message.received {
+  background-color: #f1f0f0;
+  margin-right: auto;
+}
+
+.message .timestamp {
+  display: block;
+  font-size: 0.7rem;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.message .sender {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.message-form {
+  display: flex;
+  gap: 10px;
+}
+
+.message-form input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+button {
+  padding: 8px 15px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #3a80d2;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}

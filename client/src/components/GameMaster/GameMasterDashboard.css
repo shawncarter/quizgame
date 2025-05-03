@@ -1,0 +1,128 @@
+.game-master-dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.dashboard-header {
+  margin-bottom: 20px;
+}
+
+.dashboard-main {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 20px;
+  height: calc(100vh - 200px);
+  overflow: hidden;
+}
+
+.dashboard-left,
+.dashboard-center,
+.dashboard-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Loading state */
+.game-master-loading,
+.game-master-error,
+.game-master-disconnected,
+.game-master-reconnecting,
+.game-master-no-session {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  text-align: center;
+  padding: 20px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: #4a90e2;
+  animation: spin 1s ease-in-out infinite;
+  margin: 20px 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error-button,
+.reconnect-button,
+.back-button {
+  padding: 10px 20px;
+  margin-top: 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.error-button {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.error-button:hover {
+  background-color: #c0392b;
+}
+
+.reconnect-button {
+  background-color: #4a90e2;
+  color: white;
+  margin-right: 10px;
+}
+
+.reconnect-button:hover {
+  background-color: #3a80d2;
+}
+
+.back-button {
+  background-color: #95a5a6;
+  color: white;
+}
+
+.back-button:hover {
+  background-color: #7f8c8d;
+}
+
+/* Responsive layout */
+@media (max-width: 1200px) {
+  .dashboard-main {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+  
+  .dashboard-right {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    height: auto;
+  }
+  
+  .dashboard-left,
+  .dashboard-center,
+  .dashboard-right {
+    grid-column: span 1;
+  }
+}

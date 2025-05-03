@@ -1,0 +1,121 @@
+.waiting-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin: 2rem auto;
+}
+
+.waiting-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.spinner-container {
+  margin-bottom: 1rem;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(33, 150, 243, 0.2);
+  border-top-color: #2196f3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.waiting-message {
+  font-size: 1.8rem;
+  color: #333;
+  margin: 0;
+}
+
+.waiting-submessage {
+  font-size: 1.1rem;
+  color: #757575;
+  margin: 0;
+  max-width: 400px;
+}
+
+.countdown-timer {
+  margin-top: 1rem;
+}
+
+.countdown-circle {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.countdown-circle svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.countdown-circle-bg {
+  fill: none;
+  stroke: #e0e0e0;
+  stroke-width: 8;
+}
+
+.countdown-circle-progress {
+  fill: none;
+  stroke: #2196f3;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 283; /* 2 * PI * 45 (radius) */
+  transition: stroke-dashoffset 1s linear;
+}
+
+.countdown-number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #2196f3;
+}
+
+/* Animations */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .waiting-screen {
+    max-width: 100%;
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+  
+  .waiting-message {
+    font-size: 1.5rem;
+  }
+  
+  .waiting-submessage {
+    font-size: 1rem;
+  }
+  
+  .countdown-circle {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .countdown-number {
+    font-size: 2rem;
+  }
+}

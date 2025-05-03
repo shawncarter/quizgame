@@ -1,0 +1,164 @@
+.qr-scanner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 1rem;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.qr-scanner-viewport {
+  width: 100%;
+  height: 300px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.qr-scanner-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  width: 100%;
+}
+
+.qr-scanner-start-btn,
+.qr-scanner-stop-btn,
+.qr-scanner-toggle-btn,
+.qr-scanner-torch-btn,
+.qr-scanner-reset-btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.qr-scanner-start-btn {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.qr-scanner-start-btn:hover {
+  background-color: #27ae60;
+}
+
+.qr-scanner-start-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.qr-scanner-stop-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.qr-scanner-stop-btn:hover {
+  background-color: #c0392b;
+}
+
+.qr-scanner-toggle-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.qr-scanner-toggle-btn:hover {
+  background-color: #2980b9;
+}
+
+.qr-scanner-torch-btn {
+  background-color: #f39c12;
+  color: white;
+}
+
+.qr-scanner-torch-btn:hover {
+  background-color: #d35400;
+}
+
+.qr-scanner-torch-btn.active {
+  background-color: #d35400;
+}
+
+.qr-scanner-instructions {
+  text-align: center;
+  margin: 1rem 0;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.qr-scanner-error {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin: 1rem 0;
+  color: #c33;
+  width: 100%;
+  text-align: center;
+}
+
+.qr-scanner-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 1.5rem;
+  background-color: #f0f9ff;
+  border-radius: 8px;
+  border: 1px solid #bde0fe;
+}
+
+.qr-scanner-result h3 {
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.qr-scanner-result p {
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.qr-scanner-result-actions {
+  margin-top: 1rem;
+}
+
+.qr-scanner-reset-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.qr-scanner-reset-btn:hover {
+  background-color: #2980b9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .qr-scanner-viewport {
+    height: 250px;
+  }
+  
+  .qr-scanner-controls {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .qr-scanner-start-btn,
+  .qr-scanner-stop-btn,
+  .qr-scanner-toggle-btn,
+  .qr-scanner-torch-btn,
+  .qr-scanner-reset-btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}

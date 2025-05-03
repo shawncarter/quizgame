@@ -1,0 +1,34 @@
+.connection-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.status-indicator {
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.connected {
+  background-color: #e0ffe0;
+  color: #008000;
+  border: 1px solid #008000;
+}
+
+.disconnected {
+  background-color: #ffe0e0;
+  color: #800000;
+  border: 1px solid #800000;
+}
+
+.error-message {
+  color: #800000;
+  font-size: 0.8rem;
+  text-align: center;
+  max-width: 300px;
+  word-wrap: break-word;
+}

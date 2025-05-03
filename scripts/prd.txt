@@ -1,0 +1,71 @@
+# QuizGame - Interactive Multiplayer Quiz Platform
+
+## Overview
+QuizGame is an interactive multiplayer quiz platform that allows a Game Master to host quiz sessions that others can join via QR code. The game features multiple round types, AI-generated questions tailored to players' interests and ages, real-time interaction through socket connections, and a clean, polished UI.
+
+## Target Audience
+- Families and friend groups (10+ people)
+- People of various ages who enjoy quiz games
+- Users who want to play together in the same physical space
+
+## Core Features
+
+### User Registration and Connection
+- Game Master initiates a server and gets a unique QR code
+- Players scan QR code to join lobby
+- Players enter name, age, and select/type a specialist subject
+- User preferences and scores persist between games
+- Player avatar and buzzer sound selection (placeholders for MVP)
+
+### Game Structure
+- Multiple configurable round types
+- Game Master can select number of rounds and game length (short/long)
+- AI-generated questions based on player age and specialist subjects
+- Question history tracking to prevent repetition
+
+### Round Types
+1. **Point Builder** - All players can answer for equal points
+2. **Graduated Points** - All can answer, but faster responses get more points
+3. **Fastest Finger First** - Only first correct answer gets points
+   - Incorrect answers block player from answering again
+   - Potential point deduction for wrong answers
+4. **Specialist Round** - "Mastermind" style
+   - 1 minute on specialist subject for each player
+   - 1.5 minutes on general knowledge
+
+### Gameplay Mechanics
+- Real-time buzzer system for questions
+- Multiple choice answer selection
+- Score tracking and leaderboard
+- Option for lowest-scoring player to select category for next round
+- Display for Game Master suitable for sharing on large screen/TV
+
+### Technical Requirements
+- Real-time communication via websockets
+- AI integration (Anthropic) for question generation
+- Context-aware question generation (avoiding repetition)
+- Responsive design for various devices
+
+## MVP Scope
+- Core game loop with at least 3 round types
+- Basic player profile (name, age, specialist subject)
+- Game Master controls for round selection
+- AI question generation
+- Real-time multiplayer functionality
+- Clean, functional UI (polish but not extensive graphics)
+- QR code join system
+
+## Future Enhancements
+- Additional round types
+- Custom buzzer sounds
+- Animated avatars
+- Question difficulty scaling
+- Game history and statistics
+- Team play mode
+
+## Technical Stack
+- Frontend: Modern web framework (React)
+- Backend: Node.js with Express
+- Real-time communication: Socket.io
+- AI Integration: Anthropic API
+- Database: MongoDB or similar for user/game data
