@@ -78,4 +78,4 @@ quizgame/
 
 ## License
 
-[MIT](LICENSE)
+[Apache](LICENSE)
