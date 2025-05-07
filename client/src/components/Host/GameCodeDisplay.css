@@ -1,0 +1,108 @@
+.game-code-display {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.game-code-display h2 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.instructions {
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.code-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.game-code {
+  background-color: #f0f5ff;
+  border: 2px dashed #4a6da7;
+  border-radius: 6px;
+  padding: 15px 25px;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #3a5d97;
+  margin-right: 10px;
+}
+
+.copy-button {
+  background-color: #4a6da7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.copy-button:hover {
+  background-color: #3a5d97;
+}
+
+.qr-link {
+  margin-bottom: 24px;
+}
+
+.qr-button {
+  display: inline-block;
+  background-color: #f0f5ff;
+  color: #4a6da7;
+  border: 1px solid #4a6da7;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.qr-button:hover {
+  background-color: #e0e9ff;
+}
+
+.actions {
+  margin-top: 30px;
+  margin-bottom: 20px;
+}
+
+.start-button {
+  display: inline-block;
+  background-color: #4a6da7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.start-button:hover {
+  background-color: #3a5d97;
+}
+
+.player-count {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 20px;
+}
+
+.count {
+  font-weight: 700;
+  color: #4a6da7;
+}

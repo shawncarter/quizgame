@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import socketService from '../services/socketService';
+import playerService from '../services/playerService';
 
 // Create context
 const SocketContext = createContext(null);
@@ -17,12 +18,14 @@ export function SocketProvider({ children }) {
   const [socketError, setSocketError] = useState(null);
   const [gameSession, setGameSession] = useState(null);
   const [events, setEvents] = useState({});
+  const [needsRegistration, setNeedsRegistration] = useState(false);
 
   // Initialize socket connection
   useEffect(() => {
     const handleConnect = () => {
       setIsConnected(true);
       setSocketError(null);
+      setNeedsRegistration(false); // Reset flag on successful connection
     };
 
     const handleDisconnect = (namespace, reason) => {
@@ -33,7 +36,13 @@ export function SocketProvider({ children }) {
     };
 
     const handleError = (namespace, error) => {
-      setSocketError(error?.message || 'Connection error');
+      // If the error is about player ID being required, set a flag
+      if (error?.message === 'Authentication error: Player ID required') {
+        setSocketError('You need to register as a player first');
+        setNeedsRegistration(true);
+      } else {
+        setSocketError(error?.message || 'Connection error');
+      }
     };
 
     // Register global event handlers
@@ -41,8 +50,29 @@ export function SocketProvider({ children }) {
     socketService.onDisconnect(handleDisconnect);
     socketService.onError(handleError);
 
-    // Initialize main socket connection
-    socketService.connect();
+    // Get player ID from localStorage for authentication
+    const playerId = playerService.getPlayerId();
+
+    // Initialize socket connection with player ID if available
+    if (playerId) {
+      socketService.connect({ playerId });
+    } else {
+      // If no player ID, only try to connect if we're on a page that doesn't require auth
+      // or if we're explicitly testing the connection
+      const currentPath = window.location.pathname;
+      const publicPaths = ['/', '/register', '/join'];
+      const isPublicPath = publicPaths.some(path => currentPath === path || currentPath.startsWith(path + '/'));
+
+      if (isPublicPath) {
+        // Allow connection without auth for public paths, but expect auth error
+        socketService.connect({}, { allowNoAuth: true });
+        // Set the flag directly to avoid socket connection errors
+        setNeedsRegistration(true);
+      } else {
+        // For protected paths, don't even try to connect without auth
+        setNeedsRegistration(true);
+      }
+    }
 
     return () => {
       // Clean up socket connection on unmount
@@ -90,7 +120,7 @@ export function SocketProvider({ children }) {
   const registerEvent = useCallback((namespace, event, callback) => {
     // Register with socket service
     socketService.onNamespace(namespace, event, callback);
-    
+
     // Store in events state
     setEvents(prev => ({
       ...prev,
@@ -157,6 +187,8 @@ export function SocketProvider({ children }) {
     isConnected,
     socketError,
     gameSession,
+    needsRegistration,
+    setNeedsRegistration,
     connectToNamespace,
     joinGameSession,
     leaveGameSession,

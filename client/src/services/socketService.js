@@ -31,6 +31,12 @@ class SocketService {
   connect(auth = {}, options = {}) {
     if (this.socket) return this.socket;
 
+    // Check if we have a player ID - if not and we're not in a special case, don't try to connect
+    if (!auth.playerId && !options.allowNoAuth) {
+      console.log('No player ID available, skipping socket connection');
+      return null;
+    }
+
     // Merge default options with provided options
     const socketOptions = {
       auth,
@@ -42,22 +48,29 @@ class SocketService {
       query: options.query || {}
     };
 
-    console.log('Connecting to socket server at:', SOCKET_URL);
-    this.socket = io(SOCKET_URL, socketOptions);
+    try {
+      // Make sure the socket URL doesn't contain /api
+      const baseUrl = SOCKET_URL.includes('/api') ? SOCKET_URL.replace('/api', '') : SOCKET_URL;
+      console.log('Connecting to socket server at:', baseUrl);
+      this.socket = io(baseUrl, socketOptions);
 
-    // Set up standard event listeners
-    this.setupSocketListeners(this.socket, 'main');
-    
-    // Set up error handling
-    initErrorHandling(
-      this.socket, 
-      (attemptNumber) => this.handleReconnect(attemptNumber),
-      (error) => this.handleFatalError(error)
-    );
+      // Set up standard event listeners
+      this.setupSocketListeners(this.socket, 'main');
 
-    return this.socket;
+      // Set up error handling
+      initErrorHandling(
+        this.socket,
+        (attemptNumber) => this.handleReconnect(attemptNumber),
+        (error) => this.handleFatalError(error)
+      );
+
+      return this.socket;
+    } catch (error) {
+      console.error('Error creating socket connection:', error);
+      return null;
+    }
   }
-  
+
   /**
    * Handle successful reconnection
    * @param {number} attemptNumber - Reconnection attempt number
@@ -66,21 +79,28 @@ class SocketService {
     console.log(`Socket reconnected after ${attemptNumber} attempts`);
     this.isConnected = true;
     this.reconnectAttempts = 0;
-    
+
     // Call reconnect callbacks
     this.onReconnectCallbacks.forEach(callback => callback(attemptNumber));
   }
-  
+
   /**
    * Handle fatal connection errors
    * @param {Error} error - Fatal error
    */
   handleFatalError(error) {
-    console.error('Fatal socket error:', error);
+    // Check if this is an expected authentication error for a new user
+    if (error && error.message && error.message.includes('Authentication error: Player ID required')) {
+      console.log('Socket requires authentication: Player registration needed');
+    } else {
+      // Only log as error for unexpected fatal errors
+      console.error('Fatal socket error:', error);
+    }
+
     this.isConnected = false;
-    
+
     // Trigger error callbacks
-    this.onErrorCallbacks.forEach(callback => 
+    this.onErrorCallbacks.forEach(callback =>
       callback('fatal', error, 'main')
     );
   }
@@ -108,18 +128,21 @@ class SocketService {
       query: options.query || {}
     };
 
-    const namespaceSocket = io(`${SOCKET_URL}/${namespace}`, socketOptions);
+    // Make sure the socket URL doesn't contain /api
+    const baseUrl = SOCKET_URL.includes('/api') ? SOCKET_URL.replace('/api', '') : SOCKET_URL;
+    console.log(`Connecting to socket namespace ${namespace} at:`, baseUrl);
+    const namespaceSocket = io(`${baseUrl}/${namespace}`, socketOptions);
 
     // Set up standard event listeners
     this.setupSocketListeners(namespaceSocket, namespace);
-    
+
     // Set up error handling with namespace-specific callbacks
     initErrorHandling(
-      namespaceSocket, 
+      namespaceSocket,
       (attemptNumber) => this.handleNamespaceReconnect(namespace, attemptNumber),
       (error) => this.handleNamespaceFatalError(namespace, error)
     );
-    
+
     this.namespaces.set(namespace, namespaceSocket);
 
     // Store in specific properties for convenience
@@ -129,7 +152,7 @@ class SocketService {
 
     return namespaceSocket;
   }
-  
+
   /**
    * Handle successful namespace reconnection
    * @param {string} namespace - Socket namespace
@@ -137,21 +160,27 @@ class SocketService {
    */
   handleNamespaceReconnect(namespace, attemptNumber) {
     console.log(`Socket namespace ${namespace} reconnected after ${attemptNumber} attempts`);
-    
+
     // Call reconnect callbacks with namespace info
     this.onReconnectCallbacks.forEach(callback => callback(attemptNumber, namespace));
   }
-  
+
   /**
    * Handle fatal namespace connection errors
    * @param {string} namespace - Socket namespace
    * @param {Error} error - Fatal error
    */
   handleNamespaceFatalError(namespace, error) {
-    console.error(`Fatal socket error in namespace ${namespace}:`, error);
-    
+    // Check if this is an expected authentication error for a new user
+    if (error && error.message && error.message.includes('Authentication error: Player ID required')) {
+      console.log(`Socket namespace ${namespace} requires authentication: Player registration needed`);
+    } else {
+      // Only log as error for unexpected fatal errors
+      console.error(`Fatal socket error in namespace ${namespace}:`, error);
+    }
+
     // Trigger error callbacks with namespace info
-    this.onErrorCallbacks.forEach(callback => 
+    this.onErrorCallbacks.forEach(callback =>
       callback('fatal', error, namespace)
     );
   }
@@ -176,12 +205,18 @@ class SocketService {
     });
 
     socket.on('connect_error', (error) => {
-      console.error(`Connection error for ${name} socket:`, error.message);
+      // Check if this is an expected authentication error for a new user
+      if (error.message && error.message.includes('Authentication error: Player ID required')) {
+        console.log(`${name} socket requires authentication: Player registration needed`);
+      } else {
+        console.error(`Connection error for ${name} socket:`, error.message);
+      }
+
       this.reconnectAttempts++;
       this.onErrorCallbacks.forEach(callback => callback(name, error));
-      
+
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error(`Max reconnection attempts reached for ${name} socket`);
+        console.log(`Max reconnection attempts reached for ${name} socket`);
         socket.disconnect();
       }
     });
@@ -233,19 +268,53 @@ class SocketService {
    * @param {boolean} isHost - Whether the user is the game host
    */
   joinGameSession(gameSessionId, gameCode, playerId, isHost = false) {
+    console.log(`Joining game session ${gameSessionId} (${gameCode}) as ${isHost ? 'host' : 'player'}`);
+
+    // Prepare authentication data
+    const auth = {
+      playerId,
+      gameSessionId,
+      isHost,
+      gameCode
+    };
+
     // First connect to the game namespace
-    const auth = { playerId, gameSessionId, isHost };
     const gameSocket = this.connectToNamespace('game', auth);
 
     // Join the game session
-    gameSocket.emit('game:join', { gameSessionId, gameCode });
+    gameSocket.emit('game:join', {
+      gameSessionId,
+      gameCode,
+      playerId,
+      isHost
+    });
 
     // If host, also connect to host namespace
     if (isHost) {
-      this.connectToNamespace('host', auth);
+      console.log('Connecting to host namespace');
+      const hostSocket = this.connectToNamespace('host', auth);
+
+      // Set up host-specific event listeners
+      hostSocket.on('connect', () => {
+        console.log('Connected to host namespace');
+        hostSocket.emit('host:connected', {
+          gameSessionId,
+          gameCode
+        });
+      });
     } else {
       // If player, connect to player namespace
-      this.connectToNamespace('player', auth);
+      console.log('Connecting to player namespace');
+      const playerSocket = this.connectToNamespace('player', auth);
+
+      // Set up player-specific event listeners
+      playerSocket.on('connect', () => {
+        console.log('Connected to player namespace');
+        playerSocket.emit('player:connected', {
+          gameSessionId,
+          gameCode
+        });
+      });
     }
 
     return gameSocket;
@@ -261,7 +330,7 @@ class SocketService {
       this.gameSocket.emit('game:leave', { gameSessionId });
       this.disconnectFromNamespace('game');
     }
-    
+
     // Also disconnect from player or host namespace
     this.disconnectFromNamespace('player');
     this.disconnectFromNamespace('host');
@@ -361,7 +430,7 @@ class SocketService {
   onReconnect(callback) {
     this.onReconnectCallbacks.push(callback);
   }
-  
+
   /**
    * Register automatic state recovery on reconnection
    * @param {Function} getState - Function to get current state
@@ -373,35 +442,35 @@ class SocketService {
     const recoveryHandler = (attemptNumber, reconnectNamespace) => {
       // Only proceed if this is for the correct namespace
       if (namespace !== 'main' && reconnectNamespace !== namespace) return;
-      
+
       // Get current state before disconnection
       const state = getState();
       if (!state) return;
-      
+
       console.log(`Recovering state for ${namespace}`);
-      
+
       // Request server to resynchronize state
       const socket = namespace === 'main' ? this.socket : this.namespaces.get(namespace);
-      
+
       if (socket) {
         socket.emit('state:resync', {
           lastState: state,
           timestamp: Date.now()
         });
-        
+
         // Listen for state update from server
         const stateListener = (newState) => {
           console.log(`Received state update for ${namespace}`);
           setState(newState);
-          
+
           // Remove the listener after state is updated
           socket.off('state:update', stateListener);
         };
-        
+
         socket.on('state:update', stateListener);
       }
     };
-    
+
     // Register the recovery handler
     this.onReconnect(recoveryHandler);
   }

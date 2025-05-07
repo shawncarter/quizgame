@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useContext } from 'react';
 import ConnectionStatus from '../components/common/ConnectionStatus';
 import SocketTester from '../components/common/SocketTester';
 import { usePlayer } from '../context/PlayerContext';
+import { SocketContext } from '../context/SocketContext';
 import './Home.css';
 
 /**
@@ -10,6 +12,17 @@ import './Home.css';
  */
 const Home = () => {
   const { isLoggedIn, player } = usePlayer();
+  const { needsRegistration, setNeedsRegistration } = useContext(SocketContext);
+  const navigate = useNavigate();
+  
+  // Redirect to registration page if needed, but only if not already logged in
+  useEffect(() => {
+    if (needsRegistration && !isLoggedIn) {
+      // Reset the flag to prevent infinite loops
+      setNeedsRegistration(false);
+      navigate('/register');
+    }
+  }, [needsRegistration, navigate, isLoggedIn, setNeedsRegistration]);
   
   return (
     <div className="home-container">

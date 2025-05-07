@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { Player } = require('../models');
 
+// Debug: Check if Player model is properly imported
+console.log('Player model imported:', !!Player);
+console.log('Player.findByDeviceId exists:', typeof Player.findByDeviceId === 'function');
+
 // Get all players
 router.get('/', async (req, res) => {
   try {
@@ -12,22 +16,33 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get one player
-router.get('/:id', getPlayer, (req, res) => {
-  res.json(res.player);
-});
-
-// Get player by device ID
+// Get player by device ID - IMPORTANT: This route must be defined before the /:id route
 router.get('/device/:deviceId', async (req, res) => {
   try {
+    console.log(`Attempting to find player by device ID: ${req.params.deviceId}`);
+
+    // Check if the static method exists
+    if (typeof Player.findByDeviceId !== 'function') {
+      console.error('Player.findByDeviceId is not a function!');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
     const player = await Player.findByDeviceId(req.params.deviceId);
+    console.log('Player search result:', player ? 'Found' : 'Not found');
+
     if (!player) {
       return res.status(404).json({ message: 'Player not found' });
     }
     res.json(player);
   } catch (err) {
+    console.error('Error finding player by device ID:', err);
     res.status(500).json({ message: err.message });
   }
+});
+
+// Get one player
+router.get('/:id', getPlayer, (req, res) => {
+  res.json(res.player);
 });
 
 // Create a player
@@ -66,7 +81,7 @@ router.patch('/:id', getPlayer, async (req, res) => {
   if (req.body.buzzerSound != null) {
     res.player.buzzerSound = req.body.buzzerSound;
   }
-  
+
   // Update last active time
   res.player.lastActive = new Date();
 
@@ -88,6 +103,17 @@ router.delete('/:id', getPlayer, async (req, res) => {
   }
 });
 
+// Get top players - IMPORTANT: This route must be defined before the /:id routes
+router.get('/leaderboard/top', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const topPlayers = await Player.getTopPlayers(limit);
+    res.json(topPlayers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Get player stats
 router.get('/:id/stats', getPlayer, async (req, res) => {
   try {
@@ -97,17 +123,6 @@ router.get('/:id/stats', getPlayer, async (req, res) => {
       totalWins: res.player.getTotalWins()
     };
     res.json(stats);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Get top players
-router.get('/leaderboard/top', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    const topPlayers = await Player.getTopPlayers(limit);
-    res.json(topPlayers);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

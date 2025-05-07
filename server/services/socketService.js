@@ -290,13 +290,23 @@ function handlePlayerConnection(socket) {
     // Add socket to game room if in a game
     if (socket.gameSessionCode) {
       socket.join(socket.gameSessionCode);
+      // Also join player-specific room for this game
+      socket.join(`${socket.gameSessionCode}:player:${socket.playerId}`);
     }
     
-    // Track connection
-    addPlayerConnection(socket);
+    // Track connection using the existing connection tracking logic
+    if (!connectedUsers.has(socket.playerId)) {
+      connectedUsers.set(socket.playerId, new Set());
+    }
+    connectedUsers.get(socket.playerId).add(socket.id);
+    userSockets.set(socket.id, socket.playerId);
     
     // Send initial player data
-    sendPlayerData(socket);
+    socket.emit('player:welcome', {
+      playerId: socket.playerId,
+      gameSessionId: socket.gameSessionId,
+      message: 'Connected to game as player'
+    });
     
     // Set up event listeners
     socket.on('player:ready', withErrorHandling(socket, handlePlayerReady));
@@ -333,14 +343,24 @@ function handleHostConnection(socket) {
     // Add socket to game room if in a game
     if (socket.gameSessionCode) {
       socket.join(socket.gameSessionCode);
+      // Also join the host-specific room for this game
+      socket.join(`${socket.gameSessionCode}:host`);
     }
     
-    // Track connection
-    addPlayerConnection(socket);
+    // Track connection using the existing connection tracking logic
+    if (!connectedUsers.has(socket.playerId)) {
+      connectedUsers.set(socket.playerId, new Set());
+    }
+    connectedUsers.get(socket.playerId).add(socket.id);
+    userSockets.set(socket.id, socket.playerId);
     
     // Send initial game data if in a game
     if (socket.gameSessionId) {
-      sendGameData(socket, socket.gameSessionId);
+      socket.emit('game:state', {
+        gameSessionId: socket.gameSessionId,
+        gameCode: socket.gameSessionCode,
+        message: 'Connected to game as host'
+      });
     }
     
     // Set up event listeners for host actions
@@ -354,17 +374,6 @@ function handleHostConnection(socket) {
     // Round management
     socket.on('round:start', withErrorHandling(socket, handleRoundStart));
     socket.on('round:end', withErrorHandling(socket, handleRoundEnd));
-    
-    // Special round handlers
-    socket.on('round:pointBuilder', withErrorHandling(socket, handlePointBuilderRound));
-    socket.on('round:fastestFinger', withErrorHandling(socket, handleFastestFingerRound));
-    socket.on('round:graduatedPoints', withErrorHandling(socket, handleGraduatedPointsRound));
-    
-    // Add new event handlers for questions and answers
-    socket.on('question:next', withErrorHandling(socket, handleQuestionNext));
-    socket.on('question:reveal', withErrorHandling(socket, handleQuestionReveal));
-    socket.on('answer:correct', withErrorHandling(socket, handleAnswerCorrect));
-    socket.on('answer:incorrect', withErrorHandling(socket, handleAnswerIncorrect));
     
     // General game management
     socket.on('game:join', withErrorHandling(socket, handleGameJoin));

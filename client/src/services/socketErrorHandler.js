@@ -10,18 +10,18 @@ const ERROR_TYPES = {
   CONNECTION_ERROR: 'connection_error',
   CONNECTION_FAILED: 'connection_failed',
   AUTHENTICATION_ERROR: 'authentication_error',
-  
+
   // Game state errors
   INVALID_GAME_STATE: 'INVALID_GAME_STATE',
   GAME_NOT_FOUND: 'GAME_NOT_FOUND',
   PLAYER_NOT_IN_GAME: 'PLAYER_NOT_IN_GAME',
-  
+
   // Rate limiting and throttling
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
-  
+
   // Permission errors
   PERMISSION_DENIED: 'PERMISSION_DENIED',
-  
+
   // General errors
   INVALID_REQUEST: 'INVALID_REQUEST',
   INTERNAL_ERROR: 'INTERNAL_ERROR'
@@ -40,19 +40,24 @@ function initErrorHandling(socket, onReconnect, onFatal) {
   }
 
   console.log('Initializing socket error handling');
-  
+
   // Handle socket errors
   socket.on('error', (error) => {
     console.error('Socket error:', error);
     handleSocketError(error, socket);
   });
-  
+
   // Handle connection errors
   socket.on('connect_error', (error) => {
-    console.error('Socket connection error:', error.message);
+    // Don't log authentication errors as errors for new users
+    if (error.message.includes('Authentication error: Player ID required')) {
+      console.log('Socket authentication required: Player ID needed');
+    } else {
+      console.error('Socket connection error:', error.message);
+    }
     handleConnectionError(error, socket, onFatal);
   });
-  
+
   // Handle successful connection
   socket.on('connect', () => {
     console.log('Socket connected successfully');
@@ -60,18 +65,18 @@ function initErrorHandling(socket, onReconnect, onFatal) {
       autoClose: 3000
     });
   });
-  
+
   // Handle disconnections
   socket.on('disconnect', (reason) => {
     console.log('Socket disconnected:', reason);
-    
+
     // For certain disconnection reasons, attempt recovery
     if (reason === 'io server disconnect') {
       // The server has forcefully disconnected the socket
       console.log('Attempting to reconnect after server disconnect');
       socket.connect();
     }
-    
+
     // Display notification based on reason
     if (reason === 'transport close' || reason === 'ping timeout') {
       toast.warning('Lost connection to server. Attempting to reconnect...', {
@@ -79,23 +84,23 @@ function initErrorHandling(socket, onReconnect, onFatal) {
       });
     }
   });
-  
+
   // Handle reconnection
   socket.on('reconnect', (attemptNumber) => {
     console.log(`Socket reconnected after ${attemptNumber} attempts`);
     toast.success('Reconnected to server', {
       autoClose: 3000
     });
-    
+
     if (onReconnect) {
       onReconnect(attemptNumber);
     }
   });
-  
+
   // Handle reconnection attempts
   socket.on('reconnect_attempt', (attemptNumber) => {
     console.log(`Socket reconnection attempt ${attemptNumber}`);
-    
+
     // Only show notification every 3 attempts to avoid spam
     if (attemptNumber % 3 === 1) {
       toast.info(`Reconnection attempt ${attemptNumber}...`, {
@@ -103,28 +108,28 @@ function initErrorHandling(socket, onReconnect, onFatal) {
       });
     }
   });
-  
+
   // Handle reconnection errors
   socket.on('reconnect_error', (error) => {
     console.error('Socket reconnection error:', error);
-    
+
     toast.error('Failed to reconnect. Please refresh the page.', {
       autoClose: false
     });
-    
+
     if (onFatal) {
       onFatal(error);
     }
   });
-  
+
   // Handle reconnection failures
   socket.on('reconnect_failed', () => {
     console.error('Socket reconnection failed after all attempts');
-    
+
     toast.error('Connection lost. Please refresh the page to reconnect.', {
       autoClose: false
     });
-    
+
     if (onFatal) {
       onFatal(new Error('Reconnection failed'));
     }
@@ -144,40 +149,40 @@ function handleSocketError(error, socket) {
     autoClose: 5000,
     closeButton: true
   };
-  
+
   // Handle specific error types
   switch (error.code) {
     case ERROR_TYPES.RATE_LIMIT_EXCEEDED:
       notification.message = `${error.message} Please wait ${error.retryAfter || 'a moment'} before trying again.`;
       notification.type = 'warning';
       break;
-      
+
     case ERROR_TYPES.INVALID_GAME_STATE:
       notification.message = 'Cannot perform this action in the current game state.';
       notification.type = 'warning';
       break;
-      
+
     case ERROR_TYPES.GAME_NOT_FOUND:
       notification.message = 'Game not found. It may have ended or been removed.';
       notification.type = 'error';
       notification.autoClose = false;
       break;
-      
+
     case ERROR_TYPES.PLAYER_NOT_IN_GAME:
       notification.message = 'You are not a participant in this game.';
       notification.type = 'error';
       break;
-      
+
     case ERROR_TYPES.PERMISSION_DENIED:
       notification.message = 'You do not have permission to perform this action.';
       notification.type = 'error';
       break;
-      
+
     default:
       // Use default notification
       break;
   }
-  
+
   // Show toast notification
   toast[notification.type](notification.message, {
     autoClose: notification.autoClose,
@@ -193,12 +198,25 @@ function handleSocketError(error, socket) {
  */
 function handleConnectionError(error, socket, onFatal) {
   console.log('Handling connection error:', error.message);
-  
+
+  // Special case for new users who need to register
+  if (error.message.includes('Authentication error: Player ID required')) {
+    // Don't show toast for this expected error
+    // This is handled by the SocketContext which will redirect to registration
+
+    // Still call onFatal to trigger the registration flow
+    if (onFatal) {
+      onFatal(error);
+    }
+    return;
+  }
+
+  // Handle other authentication errors
   if (error.message.includes('authentication')) {
     toast.error('Authentication failed. Please log in again.', {
       autoClose: false
     });
-    
+
     // This is likely a fatal error requiring user action
     if (onFatal) {
       onFatal(error);
@@ -208,7 +226,7 @@ function handleConnectionError(error, socket, onFatal) {
     toast.error('Connection blocked by CORS policy. Please check server configuration.', {
       autoClose: false
     });
-    
+
     if (onFatal) {
       onFatal(error);
     }
@@ -216,7 +234,7 @@ function handleConnectionError(error, socket, onFatal) {
     toast.error(`Connection error: ${error.message}. Attempting to reconnect...`, {
       autoClose: 5000
     });
-    
+
     // Socket.io will automatically try to reconnect
     console.log('Waiting for automatic reconnection...');
   }
@@ -231,7 +249,7 @@ function createErrorHandler(onError) {
   return function(error) {
     // First apply default handling
     handleSocketError(error);
-    
+
     // Then apply custom handling if provided
     if (onError) {
       onError(error);

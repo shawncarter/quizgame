@@ -1,0 +1,125 @@
+.debug-panel {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-top-left-radius: 8px;
+  font-family: monospace;
+  z-index: 9999;
+  transition: all 0.3s ease;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.debug-panel.collapsed {
+  width: 150px;
+  height: 40px;
+}
+
+.debug-panel.expanded {
+  width: 400px;
+  height: auto;
+  max-height: 80vh;
+}
+
+.debug-header {
+  padding: 8px 12px;
+  background-color: #333;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.debug-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.debug-content {
+  padding: 12px;
+  font-size: 12px;
+}
+
+.debug-section {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 8px;
+}
+
+.debug-section h4 {
+  margin: 0 0 8px 0;
+  color: #66c2ff;
+}
+
+.debug-section p {
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.debug-error {
+  color: #ff6666;
+  font-weight: bold;
+}
+
+.debug-error-indicator {
+  color: #ff6666;
+  font-size: 16px;
+}
+
+.status-ok {
+  color: #66ff66;
+  font-weight: bold;
+}
+
+.status-error {
+  color: #ff6666;
+  font-weight: bold;
+}
+
+.status-loading {
+  color: #ffcc66;
+  font-weight: bold;
+}
+
+.status-idle {
+  color: #cccccc;
+}
+
+.status-active {
+  color: #66ff66;
+  font-weight: bold;
+}
+
+.status-paused {
+  color: #ffcc66;
+  font-weight: bold;
+}
+
+.status-completed {
+  color: #66c2ff;
+  font-weight: bold;
+}
+
+.debug-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.debug-actions button {
+  background-color: #444;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.debug-actions button:hover {
+  background-color: #555;
+}

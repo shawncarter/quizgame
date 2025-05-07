@@ -4,6 +4,7 @@
  */
 const { GameSession, Player } = require('../models');
 const { generateUniqueGameCode } = require('../utils/gameUtils');
+const mongoose = require('mongoose');
 
 /**
  * Create a new game session
@@ -55,16 +56,32 @@ exports.createGameSession = async (req, res) => {
  */
 exports.getGameSessionById = async (req, res) => {
   try {
+    console.log(`Attempting to fetch game session with ID: ${req.params.id}`);
+    console.log(`Request headers:`, req.headers);
+    console.log(`User in request:`, req.user);
+    
+    // Check if the ID is valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log(`Invalid MongoDB ObjectId: ${req.params.id}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid game session ID format'
+      });
+    }
+    
     const gameSession = await GameSession.findById(req.params.id)
       .populate('hostId', 'name avatar')
       .populate('players.playerId', 'name avatar');
     
     if (!gameSession) {
+      console.log(`Game session not found with ID: ${req.params.id}`);
       return res.status(404).json({
         success: false,
         error: 'Game session not found'
       });
     }
+    
+    console.log(`Game session found: ${gameSession._id}, host: ${gameSession.hostId}`);
     
     res.status(200).json({
       success: true,

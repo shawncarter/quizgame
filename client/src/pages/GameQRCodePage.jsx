@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeDisplay } from '../components/QRCode';
+import gameSessionService from '../services/gameSessionService';
 import './GameQRCodePage.css';
 
 /**
@@ -21,14 +22,8 @@ const GameQRCodePage = () => {
       return;
     }
 
-    // Fetch game session details
-    fetch(`/api/games/${id}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to fetch game session');
-        }
-        return response.json();
-      })
+    // Fetch game session details using the gameSessionService
+    gameSessionService.getGameSessionById(id)
       .then(data => {
         setGameSession(data);
         setLoading(false);

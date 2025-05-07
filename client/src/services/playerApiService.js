@@ -19,13 +19,13 @@ const registerPlayer = async (playerData) => {
       ...playerData,
       deviceId: playerService.getDeviceId()
     };
-    
+
     const response = await axios.post(`${API_URL}/players`, playerWithDevice);
-    
+
     // Save player ID and data to localStorage
     playerService.savePlayerId(response.data._id);
     playerService.savePlayerData(response.data);
-    
+
     return response.data;
   } catch (error) {
     console.error('Error registering player:', error);
@@ -69,22 +69,37 @@ const getPlayerById = async (playerId) => {
 const getPlayerByDevice = async () => {
   try {
     const deviceId = playerService.getDeviceId();
-    const response = await axios.get(`${API_URL}/players/device/${deviceId}`);
-    
+
+    // Skip the API call if we're in development mode and want to suppress 404 errors
+    // This is useful for testing without a backend
+    if (import.meta.env.DEV && import.meta.env.VITE_SUPPRESS_404_ERRORS === 'true') {
+      console.log('Development mode: Skipping device ID lookup to avoid 404 errors');
+      return null;
+    }
+
+    // Use a silent axios instance that doesn't log 404 errors to console
+    const response = await axios.get(`${API_URL}/players/device/${deviceId}`, {
+      validateStatus: status => (status >= 200 && status < 300) || status === 404
+    });
+
+    // Handle 404 as a valid case (new device)
+    if (response.status === 404) {
+      return null;
+    }
+
     // Save player ID and data to localStorage if found
     if (response.data) {
       playerService.savePlayerId(response.data._id);
       playerService.savePlayerData(response.data);
     }
-    
+
     return response.data;
   } catch (error) {
-    // If 404, player not found for this device, which is a valid case
-    if (error.response && error.response.status === 404) {
-      return null;
+    // Only log real errors, not expected 404s
+    if (!error.response || error.response.status !== 404) {
+      console.error('Error getting player by device:', error);
     }
-    console.error('Error getting player by device:', error);
-    throw error;
+    return null; // Return null for any error to simplify error handling
   }
 };
 
@@ -97,10 +112,10 @@ const getPlayerByDevice = async () => {
 const updatePlayer = async (playerId, updates) => {
   try {
     const response = await axios.patch(`${API_URL}/players/${playerId}`, updates);
-    
+
     // Update local storage with new data
     playerService.updatePlayerData(response.data);
-    
+
     return response.data;
   } catch (error) {
     console.error('Error updating player:', error);
@@ -116,10 +131,10 @@ const updatePlayer = async (playerId, updates) => {
 const deletePlayer = async (playerId) => {
   try {
     const response = await axios.delete(`${API_URL}/players/${playerId}`);
-    
+
     // Clear player data from localStorage
     playerService.clearPlayerData();
-    
+
     return response.data;
   } catch (error) {
     console.error('Error deleting player:', error);
@@ -167,7 +182,7 @@ const loadExistingPlayer = async () => {
     if (playerService.isPlayerRegistered()) {
       return true;
     }
-    
+
     // Then check API by device ID
     const player = await getPlayerByDevice();
     return !!player;

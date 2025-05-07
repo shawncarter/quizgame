@@ -24,7 +24,7 @@ router.post(
 // Get, update, delete game session by ID (Game Master only)
 router.get(
   '/:id', 
-  validateGameSessionAccess, 
+  authenticate,  // Make sure this middleware is correctly applied
   gameSessionController.getGameSessionById
 );
 

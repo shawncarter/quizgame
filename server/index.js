@@ -17,10 +17,20 @@ const server = http.createServer(app);
 // Set up Socket.io
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'OPTIONS'],
+    origin: function(origin, callback) {
+      const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1 || origin === process.env.CLIENT_URL) {
+        callback(null, true);
+      } else {
+        console.log('Not allowed by CORS:', origin);
+        callback(null, true); // Allow all origins in development
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-auth-token']
   }
 });
 
@@ -29,10 +39,20 @@ socketService.initialize(io);
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  methods: ['GET', 'POST', 'OPTIONS'],
+  origin: function(origin, callback) {
+    const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || origin === process.env.CLIENT_URL) {
+      callback(null, true);
+    } else {
+      console.log('Not allowed by CORS:', origin);
+      callback(null, true); // Allow all origins in development
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-auth-token']
 }));
 app.use(express.json());
 
