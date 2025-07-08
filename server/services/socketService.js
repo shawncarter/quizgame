@@ -2,6 +2,7 @@
  * Socket.io Service
  * Handles all real-time communication for game sessions
  */
+const mongoose = require('mongoose');
 const { GameSession, Player } = require('../models');
 const { handleTestConnection } = require('./testSocketService');
 const { 
@@ -40,6 +41,9 @@ const buzzerQueue = new Map();    // Maps gameCode to array of buzzer activation
 const activeQuestions = new Map(); // Maps gameCode to current active question
 const playerAnswers = new Map();   // Maps gameCode_questionId to Map of playerId -> answer
 const playerStatuses = new Map();  // Maps playerId to current status (active, away, etc.)
+
+// Store for cleanup
+let heartbeatInterval = null;
 
 /**
  * Initialize Socket.io server
@@ -138,8 +142,8 @@ function initialize(io) {
   testNamespace.on('connection', handleTestConnection);
   
   // Setup heartbeat to detect disconnections
-  setInterval(() => checkConnections(io), 30000);
-  
+  heartbeatInterval = setInterval(() => checkConnections(io), 30000);
+
   console.log('Socket.io initialized with all namespaces');
   return io;
 }
@@ -153,17 +157,38 @@ async function authMiddleware(socket, next) {
   try {
     const playerId = socket.handshake.auth.playerId;
     const gameSessionId = socket.handshake.auth.gameSessionId;
-    
+    const isHost = socket.handshake.auth.isHost || false;
+
     if (!playerId) {
       return next(new Error('Authentication error: Player ID required'));
     }
-    
+
     // Store the player ID in the socket for later use
     socket.playerId = playerId;
     socket.gameSessionId = gameSessionId;
-    
-    // Additional namespace-specific validation could be added here
-    
+    socket.isHost = isHost;
+
+    // If game session specified, verify player is in the session and get game code
+    if (gameSessionId) {
+      const gameSession = await GameSession.findById(gameSessionId);
+      if (!gameSession) {
+        return next(new Error('Game session not found'));
+      }
+
+      // Hosts don't need to be in the player list
+      if (!isHost) {
+        const isPlayerInSession = gameSession.players.some(
+          player => player.playerId.toString() === playerId
+        );
+
+        if (!isPlayerInSession) {
+          return next(new Error('Player not in this game session'));
+        }
+      }
+
+      socket.gameSessionCode = gameSession.code;
+    }
+
     next();
   } catch (error) {
     console.error('Socket namespace authentication error:', error);
@@ -226,13 +251,30 @@ function checkConnections(io) {
 function handleConnection(socket) {
   const playerId = socket.playerId;
   console.log(`Player connected: ${playerId} (Socket ID: ${socket.id})`);
-  
+
   // Store socket in connected users map
   if (!connectedUsers.has(playerId)) {
     connectedUsers.set(playerId, new Set());
   }
   connectedUsers.get(playerId).add(socket.id);
-  
+
+  // Store mapping from socket ID to player ID
+  userSockets.set(socket.id, playerId);
+}
+
+/**
+ * Add player connection tracking for namespace connections
+ * @param {Socket} socket - Socket.io socket instance
+ */
+function addPlayerConnection(socket) {
+  const playerId = socket.playerId;
+
+  // Store socket in connected users map
+  if (!connectedUsers.has(playerId)) {
+    connectedUsers.set(playerId, new Set());
+  }
+  connectedUsers.get(playerId).add(socket.id);
+
   // Store mapping from socket ID to player ID
   userSockets.set(socket.id, playerId);
 }
@@ -299,16 +341,16 @@ function handlePlayerConnection(socket) {
     sendPlayerData(socket);
     
     // Set up event listeners
-    socket.on('player:ready', withErrorHandling(socket, handlePlayerReady));
-    socket.on('player:buzzer', withErrorHandling(socket, handlePlayerBuzzer));
-    socket.on('player:answer', withErrorHandling(socket, handlePlayerAnswer));
-    socket.on('player:status', withErrorHandling(socket, handlePlayerStatus));
-    socket.on('game:join', withErrorHandling(socket, handleGameJoin));
-    socket.on('game:leave', withErrorHandling(socket, handleGameLeave));
-    socket.on('chat:message', withErrorHandling(socket, handleChatMessage));
-    
+    socket.on('player:ready', withErrorHandling(handlePlayerReady));
+    socket.on('player:buzzer', withErrorHandling(handlePlayerBuzzer));
+    socket.on('player:answer', withErrorHandling(handlePlayerAnswer));
+    socket.on('player:status', withErrorHandling(handlePlayerStatus));
+    socket.on('game:join', withErrorHandling(handleGameJoin));
+    socket.on('game:leave', withErrorHandling(handleGameLeave));
+    socket.on('chat:message', withErrorHandling(handleChatMessage));
+
     // Add new event handlers for questions and answers
-    socket.on('answer:submit', withErrorHandling(socket, handleAnswerSubmit));
+    socket.on('answer:submit', withErrorHandling(handleAnswerSubmit));
     
     // Handle disconnection
     socket.on('disconnect', () => {
@@ -344,32 +386,32 @@ function handleHostConnection(socket) {
     }
     
     // Set up event listeners for host actions
-    socket.on('host:startGame', withErrorHandling(socket, handleStartGame));
-    socket.on('host:nextQuestion', withErrorHandling(socket, handleNextQuestion));
-    socket.on('host:endQuestion', withErrorHandling(socket, handleEndQuestion));
-    socket.on('host:pauseGame', withErrorHandling(socket, handlePauseGame));
-    socket.on('host:resumeGame', withErrorHandling(socket, handleResumeGame));
-    socket.on('host:endGame', withErrorHandling(socket, handleEndGame));
+    socket.on('host:startGame', withErrorHandling(handleStartGame));
+    socket.on('host:nextQuestion', withErrorHandling(handleNextQuestion));
+    socket.on('host:endQuestion', withErrorHandling(handleEndQuestion));
+    socket.on('host:pauseGame', withErrorHandling(handlePauseGame));
+    socket.on('host:resumeGame', withErrorHandling(handleResumeGame));
+    socket.on('host:endGame', withErrorHandling(handleEndGame));
     
     // Round management
-    socket.on('round:start', withErrorHandling(socket, handleRoundStart));
-    socket.on('round:end', withErrorHandling(socket, handleRoundEnd));
-    
+    socket.on('round:start', withErrorHandling(handleRoundStart));
+    socket.on('round:end', withErrorHandling(handleRoundEnd));
+
     // Special round handlers
-    socket.on('round:pointBuilder', withErrorHandling(socket, handlePointBuilderRound));
-    socket.on('round:fastestFinger', withErrorHandling(socket, handleFastestFingerRound));
-    socket.on('round:graduatedPoints', withErrorHandling(socket, handleGraduatedPointsRound));
+    socket.on('round:pointBuilder', withErrorHandling(handlePointBuilderRound));
+    socket.on('round:fastestFinger', withErrorHandling(handleFastestFingerRound));
+    socket.on('round:graduatedPoints', withErrorHandling(handleGraduatedPointsRound));
     
     // Add new event handlers for questions and answers
-    socket.on('question:next', withErrorHandling(socket, handleQuestionNext));
-    socket.on('question:reveal', withErrorHandling(socket, handleQuestionReveal));
-    socket.on('answer:correct', withErrorHandling(socket, handleAnswerCorrect));
-    socket.on('answer:incorrect', withErrorHandling(socket, handleAnswerIncorrect));
-    
+    socket.on('question:next', withErrorHandling(handleQuestionNext));
+    socket.on('question:reveal', withErrorHandling(handleQuestionReveal));
+    socket.on('answer:correct', withErrorHandling(handleAnswerCorrect));
+    socket.on('answer:incorrect', withErrorHandling(handleAnswerIncorrect));
+
     // General game management
-    socket.on('game:join', withErrorHandling(socket, handleGameJoin));
-    socket.on('game:leave', withErrorHandling(socket, handleGameLeave));
-    socket.on('chat:message', withErrorHandling(socket, handleChatMessage));
+    socket.on('game:join', withErrorHandling(handleGameJoin));
+    socket.on('game:leave', withErrorHandling(handleGameLeave));
+    socket.on('chat:message', withErrorHandling(handleChatMessage));
     
     // Handle disconnection
     socket.on('disconnect', () => {
@@ -1791,11 +1833,17 @@ async function handlePlayerDisconnect(socket) {
     const gameSessionCode = socket.gameSessionCode;
     const gameSessionId = socket.gameSessionId;
     const playerId = socket.playerId;
-    
+
     if (!gameSessionCode || !gameSessionId) {
       return; // Not in a game session, nothing to clean up
     }
-    
+
+    // Check if database connection is still active (prevents memory leaks in tests)
+    if (mongoose.connection.readyState !== 1) {
+      console.log(`Database connection closed, skipping player disconnect handling for ${playerId}`);
+      return;
+    }
+
     // Find the game session
     const gameSession = await GameSession.findById(gameSessionId);
     if (!gameSession) {
@@ -1839,10 +1887,44 @@ async function handlePlayerDisconnect(socket) {
 }
 
 /**
+ * Cleanup function for tests and shutdown
+ */
+function cleanup() {
+  // Clear heartbeat interval
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+
+  // Clear all timers from host event handlers
+  const { questionTimers, roundTimers } = require('./hostEventHandlers');
+  for (const timerId of questionTimers.values()) {
+    clearTimeout(timerId);
+  }
+  for (const timerId of roundTimers.values()) {
+    clearTimeout(timerId);
+  }
+  questionTimers.clear();
+  roundTimers.clear();
+
+  // Clear all maps
+  connectedUsers.clear();
+  userSockets.clear();
+  gameRooms.clear();
+  buzzerQueue.clear();
+  activeQuestions.clear();
+  playerAnswers.clear();
+  playerStatuses.clear();
+
+  console.log('Socket service cleanup completed');
+}
+
+/**
  * Expose the socket service API
  */
 module.exports = {
   initialize,
   getPlayerSockets,
-  isPlayerOnline
+  isPlayerOnline,
+  cleanup
 };

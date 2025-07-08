@@ -33,6 +33,7 @@
     "jest": "^29.7.0",
     "mongodb-memory-server": "^10.1.4",
     "nodemon": "^3.1.10",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "unimported": "^1.31.0"
   }
 }

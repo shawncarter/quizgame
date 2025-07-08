@@ -17,7 +17,7 @@ async function handleRoundStart(socket, data) {
     const gameSessionId = socket.gameSessionId;
     const playerId = socket.playerId;
     const gameSessionCode = socket.gameSessionCode;
-    
+
     if (!gameSessionId) {
       throw createSocketError('No game session ID provided', 'MISSING_GAME_SESSION');
     }
@@ -113,14 +113,22 @@ async function handleRoundStart(socket, data) {
       setupRoundTimer(gameSessionCode, roundSettings.timeLimit, socket, gameSession._id, roundNumber);
     }
     
-    // Broadcast round start to all players
-    socket.to(gameSessionCode).emit('round:started', {
+    // Broadcast round start to all players across namespaces
+    const roundStartData = {
       roundNumber,
       roundType,
       settings: roundSettings,
       timestamp: Date.now()
-    });
-    
+    };
+
+    // Broadcast to host namespace
+    socket.to(gameSessionCode).emit('round:started', roundStartData);
+
+    // Broadcast to player namespace (cross-namespace broadcasting)
+    if (socket.nsp && socket.nsp.server) {
+      socket.nsp.server.of('/player').to(gameSessionCode).emit('round:started', roundStartData);
+    }
+
     // Confirm to host
     socket.emit('round:started', {
       roundNumber,
@@ -318,13 +326,21 @@ async function handleRoundEnd(socket, data) {
       roundTimers.delete(gameSessionCode);
     }
     
-    // Broadcast round end to all players
-    socket.to(gameSessionCode).emit('round:ended', {
+    // Broadcast round end to all players across namespaces
+    const roundEndData = {
       roundNumber,
       results: roundResults,
       timestamp: Date.now()
-    });
-    
+    };
+
+    // Broadcast to host namespace
+    socket.to(gameSessionCode).emit('round:ended', roundEndData);
+
+    // Broadcast to player namespace (cross-namespace broadcasting)
+    if (socket.nsp && socket.nsp.server) {
+      socket.nsp.server.of('/player').to(gameSessionCode).emit('round:ended', roundEndData);
+    }
+
     // Send detailed results to host
     socket.emit('round:ended', {
       roundNumber,

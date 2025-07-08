@@ -47,8 +47,26 @@ describe('Socket.io Real Connection Test', () => {
   }, 15000);
 
   afterAll(async () => {
-    if (io) io.close();
-    if (httpServer) httpServer.close();
+    // Cleanup all services first
+    const socketService = require('../services/socketService');
+    const socketMonitoring = require('../services/socketMonitoring');
+    const socketRecovery = require('../services/socketRecovery');
+
+    socketService.cleanup();
+    socketMonitoring.cleanup();
+    socketRecovery.cleanup();
+
+    // Close socket.io and server
+    if (io) {
+      io.close();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give time for cleanup
+    }
+    if (httpServer) {
+      httpServer.close();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give time for cleanup
+    }
+
+    // Close database
     await mongoose.disconnect();
     await mongoServer.stop();
   }, 15000);
@@ -117,7 +135,7 @@ describe('Socket.io Real Connection Test', () => {
 
     test('should connect to root namespace with proper authentication', async () => {
       console.log('\n🔐 Testing authenticated connection to root namespace...');
-      
+
       const authenticatedSocket = Client(`http://localhost:${serverPort}`, {
         auth: {
           playerId: quizmaster._id.toString(),
@@ -125,18 +143,18 @@ describe('Socket.io Real Connection Test', () => {
           isHost: true
         }
       });
-      
+
       const connected = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
           resolve(false);
         }, 5000);
-        
+
         authenticatedSocket.on('connect', () => {
           clearTimeout(timeout);
           console.log('✅ Successfully connected with authentication');
           resolve(true);
         });
-        
+
         authenticatedSocket.on('connect_error', (error) => {
           clearTimeout(timeout);
           console.log('❌ Authentication error:', error.message);
@@ -146,8 +164,43 @@ describe('Socket.io Real Connection Test', () => {
 
       expect(connected).toBe(true);
       expect(authenticatedSocket.connected).toBe(true);
-      
+
       authenticatedSocket.close();
+    }, 10000);
+
+    test('should connect to host namespace with proper authentication', async () => {
+      console.log('\n🔐 Testing authenticated connection to host namespace...');
+
+      const hostSocket = Client(`http://localhost:${serverPort}/host`, {
+        auth: {
+          playerId: quizmaster._id.toString(),
+          gameSessionId: gameSession._id.toString(),
+          isHost: true
+        }
+      });
+
+      const connected = await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve(false);
+        }, 5000);
+
+        hostSocket.on('connect', () => {
+          clearTimeout(timeout);
+          console.log('✅ Successfully connected to host namespace');
+          resolve(true);
+        });
+
+        hostSocket.on('connect_error', (error) => {
+          clearTimeout(timeout);
+          console.log('❌ Host namespace connection error:', error.message);
+          resolve(false);
+        });
+      });
+
+      expect(connected).toBe(true);
+      expect(hostSocket.connected).toBe(true);
+
+      hostSocket.close();
     }, 10000);
 
     test('should reject connection without proper authentication', async () => {
@@ -184,8 +237,8 @@ describe('Socket.io Real Connection Test', () => {
     let playerSocket;
 
     beforeEach(async () => {
-      // Connect host socket
-      hostSocket = Client(`http://localhost:${serverPort}`, {
+      // Connect host socket to /host namespace for round management
+      hostSocket = Client(`http://localhost:${serverPort}/host`, {
         auth: {
           playerId: quizmaster._id.toString(),
           gameSessionId: gameSession._id.toString(),
@@ -193,12 +246,25 @@ describe('Socket.io Real Connection Test', () => {
         }
       });
 
-      await new Promise((resolve) => {
-        hostSocket.on('connect', resolve);
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Host socket connection timeout'));
+        }, 5000);
+
+        hostSocket.on('connect', () => {
+          clearTimeout(timeout);
+          console.log('🔗 Host socket connected to /host namespace');
+          resolve();
+        });
+
+        hostSocket.on('connect_error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
       });
 
-      // Connect player socket  
-      playerSocket = Client(`http://localhost:${serverPort}`, {
+      // Connect player socket to /player namespace
+      playerSocket = Client(`http://localhost:${serverPort}/player`, {
         auth: {
           playerId: testPlayer._id.toString(),
           gameSessionId: gameSession._id.toString(),
@@ -206,11 +272,24 @@ describe('Socket.io Real Connection Test', () => {
         }
       });
 
-      await new Promise((resolve) => {
-        playerSocket.on('connect', resolve);
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Player socket connection timeout'));
+        }, 5000);
+
+        playerSocket.on('connect', () => {
+          clearTimeout(timeout);
+          console.log('🔗 Player socket connected to /player namespace');
+          resolve();
+        });
+
+        playerSocket.on('connect_error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
       });
 
-      console.log('✅ Both host and player sockets connected');
+      console.log('✅ Both host and player sockets connected to correct namespaces');
     });
 
     afterEach(() => {
@@ -220,20 +299,65 @@ describe('Socket.io Real Connection Test', () => {
 
     test('should handle round start event through sockets', async () => {
       console.log('\n🎯 Testing round start through socket...');
-      
-      let roundStartReceived = false;
-      
-      // Listen for round started event
-      const roundStartPromise = new Promise((resolve) => {
+      console.log(`🔍 Host socket connected: ${hostSocket.connected}`);
+      console.log(`🔍 Player socket connected: ${playerSocket.connected}`);
+      console.log(`🔍 Game session code: ${gameSession.code}`);
+
+      let hostRoundStartReceived = false;
+      let playerRoundStartReceived = false;
+
+      // Listen for round started event on host
+      const hostRoundStartPromise = new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log('❌ Host round:started event timeout');
+          resolve(null);
+        }, 8000);
+
         hostSocket.on('round:started', (data) => {
-          if (!roundStartReceived) {
-            roundStartReceived = true;
+          if (!hostRoundStartReceived) {
+            hostRoundStartReceived = true;
+            clearTimeout(timeout);
             console.log('✅ Host received round:started event:', data);
             expect(data.roundNumber).toBe(1);
             expect(data.roundType).toBe('point-builder');
             resolve(data);
           }
         });
+      });
+
+      // Listen for round started event on player
+      const playerRoundStartPromise = new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log('❌ Player round:started event timeout');
+          resolve(null);
+        }, 8000);
+
+        playerSocket.on('round:started', (data) => {
+          if (!playerRoundStartReceived) {
+            playerRoundStartReceived = true;
+            clearTimeout(timeout);
+            console.log('✅ Player received round:started event:', data);
+            resolve(data);
+          }
+        });
+      });
+
+      // Listen for any errors
+      hostSocket.on('error', (error) => {
+        console.log('❌ Host socket error:', error);
+      });
+
+      playerSocket.on('error', (error) => {
+        console.log('❌ Player socket error:', error);
+      });
+
+      console.log('🚀 Emitting round:start event...');
+
+      // Debug socket properties
+      console.log('🔍 Host socket auth data:', {
+        playerId: hostSocket.auth?.playerId,
+        gameSessionId: hostSocket.auth?.gameSessionId,
+        isHost: hostSocket.auth?.isHost
       });
 
       // Start a round
@@ -243,17 +367,24 @@ describe('Socket.io Real Connection Test', () => {
         pointsPerQuestion: 10
       });
 
-      const roundData = await roundStartPromise;
-      expect(roundData).toBeDefined();
-      
+      // Wait for both events
+      const [hostData, playerData] = await Promise.all([
+        hostRoundStartPromise,
+        playerRoundStartPromise
+      ]);
+
+      expect(hostData).toBeDefined();
+      expect(hostData).not.toBeNull();
+
       // Verify database was updated
       const updatedSession = await GameSession.findById(gameSession._id);
       expect(updatedSession.currentRound).toBe(1);
       expect(updatedSession.currentRoundType).toBe('point-builder');
       expect(updatedSession.rounds).toHaveLength(1);
-      
+
       console.log('✅ Round start event and database update verified');
-    }, 10000);
+      console.log(`📊 Host received event: ${hostRoundStartReceived}, Player received event: ${playerRoundStartReceived}`);
+    }, 15000);
 
     test('should handle round end event through sockets', async () => {
       console.log('\n🏁 Testing round end through socket...');
@@ -351,8 +482,8 @@ describe('Socket.io Real Connection Test', () => {
       );
       await session.save();
 
-      // Connect all sockets
-      const hostSocket = Client(`http://localhost:${serverPort}`, {
+      // Connect all sockets to correct namespaces
+      const hostSocket = Client(`http://localhost:${serverPort}/host`, {
         auth: {
           playerId: quizmaster._id.toString(),
           gameSessionId: gameSession._id.toString(),
@@ -360,7 +491,7 @@ describe('Socket.io Real Connection Test', () => {
         }
       });
 
-      const player1Socket = Client(`http://localhost:${serverPort}`, {
+      const player1Socket = Client(`http://localhost:${serverPort}/player`, {
         auth: {
           playerId: testPlayer._id.toString(),
           gameSessionId: gameSession._id.toString(),
@@ -368,7 +499,7 @@ describe('Socket.io Real Connection Test', () => {
         }
       });
 
-      const player2Socket = Client(`http://localhost:${serverPort}`, {
+      const player2Socket = Client(`http://localhost:${serverPort}/player`, {
         auth: {
           playerId: player2._id.toString(),
           gameSessionId: gameSession._id.toString(),
@@ -376,7 +507,7 @@ describe('Socket.io Real Connection Test', () => {
         }
       });
 
-      const player3Socket = Client(`http://localhost:${serverPort}`, {
+      const player3Socket = Client(`http://localhost:${serverPort}/player`, {
         auth: {
           playerId: player3._id.toString(),
           gameSessionId: gameSession._id.toString(),

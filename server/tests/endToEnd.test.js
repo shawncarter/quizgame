@@ -50,11 +50,49 @@ describe('End-to-End Quiz Game Test', () => {
   }, 30000);
 
   afterAll(async () => {
-    // Close all connections
-    playerSockets.forEach(socket => socket?.close());
-    if (quizmasterSocket) quizmasterSocket.close();
-    if (io) io.close();
-    if (httpServer) httpServer.close();
+    // Cleanup all services first
+    const socketService = require('../services/socketService');
+    const socketMonitoring = require('../services/socketMonitoring');
+    const socketRecovery = require('../services/socketRecovery');
+
+    socketService.cleanup();
+    socketMonitoring.cleanup();
+    socketRecovery.cleanup();
+
+    // Close all socket connections with proper cleanup
+    if (playerSockets && playerSockets.length > 0) {
+      for (const socket of playerSockets) {
+        if (socket && socket.connected) {
+          socket.removeAllListeners(); // Remove all event listeners
+          socket.close();
+        }
+      }
+      playerSockets = [];
+    }
+
+    if (quizmasterSocket && quizmasterSocket.connected) {
+      quizmasterSocket.removeAllListeners(); // Remove all event listeners
+      quizmasterSocket.close();
+      quizmasterSocket = null;
+    }
+
+    // Close socket.io server
+    if (io) {
+      io.close();
+      await new Promise(resolve => setTimeout(resolve, 200)); // Give more time for cleanup
+    }
+
+    // Close HTTP server
+    if (httpServer) {
+      await new Promise((resolve) => {
+        httpServer.close(() => {
+          resolve();
+        });
+      });
+      await new Promise(resolve => setTimeout(resolve, 200)); // Give more time for cleanup
+    }
+
+    // Close database
     await mongoose.disconnect();
     await mongoServer.stop();
   }, 30000);
@@ -112,58 +150,81 @@ describe('End-to-End Quiz Game Test', () => {
 
       console.log(`✅ Created ${players.length} players`);
 
+      // ===== STEP 3.5: Add Players to Game Session =====
+      console.log('🔗 Step 3.5: Adding players to game session...');
+      gameSession.players = players.map(player => ({
+        playerId: player._id,
+        score: 0,
+        isActive: true
+      }));
+      await gameSession.save();
+      console.log('✅ Added all players to game session');
+
       // ===== STEP 4: Connect Quizmaster Socket =====
       console.log('🔌 Step 4: Connecting Quizmaster Socket...');
-      quizmasterSocket = Client(`http://localhost:${serverPort}`);
-      
-      await new Promise((resolve) => {
+      quizmasterSocket = Client(`http://localhost:${serverPort}/host`, {
+        timeout: 5000,
+        forceNew: true,
+        auth: {
+          playerId: quizmaster._id.toString(),
+          gameSessionId: gameSession._id.toString(),
+          isHost: true
+        }
+      });
+
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Quizmaster socket connection timeout'));
+        }, 10000);
+
         quizmasterSocket.on('connect', () => {
+          clearTimeout(timeout);
           console.log('✅ Quizmaster connected');
           resolve();
         });
+
+        quizmasterSocket.on('connect_error', (error) => {
+          clearTimeout(timeout);
+          reject(new Error(`Quizmaster socket connection error: ${error.message}`));
+        });
       });
 
-      // Join game as host
-      await new Promise((resolve) => {
-        quizmasterSocket.emit('join-game', {
-          code: gameSession.code,
-          playerId: quizmaster._id.toString()
-        });
-        
-        quizmasterSocket.on('game-joined', (data) => {
-          expect(data.success).toBe(true);
-          console.log('✅ Quizmaster joined game');
-          resolve();
-        });
-      });
+      console.log('✅ Quizmaster connected and authenticated');
 
       // ===== STEP 5: Connect All Player Sockets =====
       console.log('🔗 Step 5: Connecting 12 Player Sockets...');
-      
+
       for (let i = 0; i < players.length; i++) {
         const player = players[i];
-        const socket = Client(`http://localhost:${serverPort}`);
+        const socket = Client(`http://localhost:${serverPort}/player`, {
+          timeout: 5000,
+          forceNew: true,
+          auth: {
+            playerId: player._id.toString(),
+            gameSessionId: gameSession._id.toString(),
+            isHost: false
+          }
+        });
         playerSockets.push(socket);
 
-        // Wait for connection
-        await new Promise((resolve) => {
-          socket.on('connect', resolve);
-        });
+        // Wait for connection with timeout
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error(`Player ${i + 1} socket connection timeout`));
+          }, 10000);
 
-        // Join game
-        await new Promise((resolve) => {
-          socket.emit('join-game', {
-            code: gameSession.code,
-            playerId: player._id.toString()
-          });
-          
-          socket.on('game-joined', (data) => {
-            expect(data.success).toBe(true);
+          socket.on('connect', () => {
+            clearTimeout(timeout);
             resolve();
           });
+
+          socket.on('connect_error', (error) => {
+            clearTimeout(timeout);
+            reject(new Error(`Player ${i + 1} socket connection error: ${error.message}`));
+          });
         });
 
-        console.log(`✅ Player ${i + 1} (${player.name}) connected and joined`);
+        console.log(`✅ Player ${i + 1} (${player.name}) connected and authenticated`);
       }
 
       // ===== STEP 6: Verify All Players Joined =====
@@ -177,16 +238,33 @@ describe('End-to-End Quiz Game Test', () => {
 
       // ===== STEP 8: Round 1 - Point Builder =====
       console.log('\n🎯 Step 8: Starting Round 1 (Point Builder)...');
-      
+
       let round1Started = false;
-      const round1Promise = new Promise((resolve) => {
-        quizmasterSocket.on('round:started', (data) => {
+      const round1Promise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Round 1 start timeout'));
+        }, 15000);
+
+        const onRoundStarted = (data) => {
           if (data.roundNumber === 1 && !round1Started) {
             round1Started = true;
+            clearTimeout(timeout);
+            quizmasterSocket.off('round:started', onRoundStarted);
+            quizmasterSocket.off('error', onError);
             console.log(`✅ Round 1 started: ${data.roundType}`);
             resolve(data);
           }
-        });
+        };
+
+        const onError = (error) => {
+          clearTimeout(timeout);
+          quizmasterSocket.off('round:started', onRoundStarted);
+          quizmasterSocket.off('error', onError);
+          reject(new Error(`Round 1 start error: ${error.message || error}`));
+        };
+
+        quizmasterSocket.on('round:started', onRoundStarted);
+        quizmasterSocket.on('error', onError);
       });
 
       quizmasterSocket.emit('round:start', {

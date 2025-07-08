@@ -9,11 +9,11 @@
  * @returns {Function} Wrapped handler with error handling
  */
 function withErrorHandling(handler) {
-  return async function(socket, data) {
+  return async function(data) {
     try {
-      return await handler(socket, data);
+      return await handler(this, data);
     } catch (error) {
-      handleSocketError(socket, error);
+      handleSocketError(this, error);
     }
   };
 }

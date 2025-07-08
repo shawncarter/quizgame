@@ -298,11 +298,32 @@ function cleanupExpiredReconnections() {
 }
 
 // Run cleanup periodically
-setInterval(cleanupExpiredReconnections, 60000); // Every minute
+const cleanupInterval = setInterval(cleanupExpiredReconnections, 60000); // Every minute
+
+/**
+ * Cleanup function for tests and shutdown
+ */
+function cleanup() {
+  // Clear cleanup interval
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+  }
+
+  // Clear all pending reconnections and their timeouts
+  for (const [playerId, data] of pendingReconnections.entries()) {
+    if (data.timeoutId) {
+      clearTimeout(data.timeoutId);
+    }
+  }
+  pendingReconnections.clear();
+
+  console.log('Socket recovery cleanup completed');
+}
 
 module.exports = {
   handleDisconnection,
   handleReconnection,
   getReconnectionData,
-  RECONNECTION_WINDOW
+  RECONNECTION_WINDOW,
+  cleanup
 };

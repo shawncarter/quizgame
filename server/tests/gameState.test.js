@@ -28,6 +28,16 @@ describe('Game State Integration Tests', () => {
   });
 
   afterAll(async () => {
+    // Cleanup all services first
+    const socketService = require('../services/socketService');
+    const socketMonitoring = require('../services/socketMonitoring');
+    const socketRecovery = require('../services/socketRecovery');
+
+    socketService.cleanup();
+    socketMonitoring.cleanup();
+    socketRecovery.cleanup();
+
+    // Close database
     await mongoose.disconnect();
     await mongoServer.stop();
   });

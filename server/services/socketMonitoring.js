@@ -19,6 +19,9 @@ const metrics = {
 // Store for per-game metrics
 const gameMetrics = new Map(); // Maps gameCode to game-specific metrics
 
+// Store for cleanup
+let loggingInterval = null;
+
 /**
  * Initialize monitoring for a Socket.io server
  * @param {Server} io - Socket.io server instance
@@ -98,7 +101,7 @@ function initializeMonitoring(io) {
   });
   
   // Set up periodic logging
-  setInterval(() => {
+  loggingInterval = setInterval(() => {
     console.log('Socket.io Server Metrics:', getMetricsSummary());
   }, 60000); // Log every minute
 }
@@ -217,9 +220,37 @@ function getGameMetrics(gameCode) {
   return null;
 }
 
+/**
+ * Cleanup function for tests and shutdown
+ */
+function cleanup() {
+  // Clear logging interval
+  if (loggingInterval) {
+    clearInterval(loggingInterval);
+    loggingInterval = null;
+  }
+
+  // Reset metrics
+  metrics.totalConnections = 0;
+  metrics.activeConnections = 0;
+  metrics.disconnections = 0;
+  metrics.errors = 0;
+  metrics.messagesSent = 0;
+  metrics.messagesReceived = 0;
+  metrics.avgLatency = 0;
+  metrics.connectionsByNamespace.clear();
+  metrics.startTime = Date.now();
+
+  // Clear game metrics
+  gameMetrics.clear();
+
+  console.log('Socket monitoring cleanup completed');
+}
+
 module.exports = {
   initializeMonitoring,
   getMetricsSummary,
   getGameMetrics,
-  updateLatency
+  updateLatency,
+  cleanup
 };

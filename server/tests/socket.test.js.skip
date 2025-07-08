@@ -46,17 +46,28 @@ describe('Socket.io Integration Tests', () => {
   });
 
   afterAll(async () => {
+    // Cleanup all services first
+    const socketService = require('../services/socketService');
+    const socketMonitoring = require('../services/socketMonitoring');
+    const socketRecovery = require('../services/socketRecovery');
+
+    socketService.cleanup();
+    socketMonitoring.cleanup();
+    socketRecovery.cleanup();
+
     // Close connections
     if (clientSocket) {
       clientSocket.close();
     }
     if (io) {
       io.close();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give time for cleanup
     }
     if (httpServer) {
       httpServer.close();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give time for cleanup
     }
-    
+
     // Close database
     await mongoose.disconnect();
     await mongoServer.stop();
@@ -84,19 +95,38 @@ describe('Socket.io Integration Tests', () => {
       rounds: []
     });
 
-    // Create client socket
-    clientSocket = Client(`http://localhost:${serverPort}`);
-    
-    // Wait for connection
-    await new Promise((resolve) => {
-      clientSocket.on('connect', resolve);
+    // Create client socket with timeout - connect to test namespace (no auth required)
+    clientSocket = Client(`http://localhost:${serverPort}/test`, {
+      timeout: 5000,
+      forceNew: true
+    });
+
+    // Wait for connection with timeout
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Socket connection timeout in beforeEach'));
+      }, 10000);
+
+      clientSocket.on('connect', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      clientSocket.on('connect_error', (error) => {
+        clearTimeout(timeout);
+        reject(new Error(`Socket connection error in beforeEach: ${error.message}`));
+      });
     });
   });
 
   afterEach(async () => {
-    if (clientSocket) {
+    if (clientSocket && clientSocket.connected) {
+      clientSocket.removeAllListeners(); // Remove all event listeners
       clientSocket.close();
+      // Wait a bit for the socket to fully close
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
+    clientSocket = null;
   });
 
   describe('Basic Socket Connection', () => {
@@ -122,29 +152,71 @@ describe('Socket.io Integration Tests', () => {
   });
 
   describe('Game Session Management', () => {
-    test('should join game session', (done) => {
+    test('should join game session', async () => {
+      const joinPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Join game session timeout'));
+        }, 10000);
+
+        const onGameJoined = (data) => {
+          clearTimeout(timeout);
+          clientSocket.off('game-joined', onGameJoined);
+          clientSocket.off('error', onError);
+          expect(data.success).toBe(true);
+          expect(data.gameCode).toBe(gameSession.code);
+          resolve(data);
+        };
+
+        const onError = (error) => {
+          clearTimeout(timeout);
+          clientSocket.off('game-joined', onGameJoined);
+          clientSocket.off('error', onError);
+          reject(new Error(`Join game session error: ${error.message || error}`));
+        };
+
+        clientSocket.on('game-joined', onGameJoined);
+        clientSocket.on('error', onError);
+      });
+
       clientSocket.emit('join-game', {
         code: gameSession.code,
         playerId: hostPlayer._id.toString()
       });
 
-      clientSocket.on('game-joined', (data) => {
-        expect(data.success).toBe(true);
-        expect(data.gameCode).toBe(gameSession.code);
-        done();
-      });
+      await joinPromise;
     });
 
-    test('should handle invalid game code', (done) => {
+    test('should handle invalid game code', async () => {
+      const errorPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Invalid game code test timeout'));
+        }, 10000);
+
+        const onError = (error) => {
+          clearTimeout(timeout);
+          clientSocket.off('error', onError);
+          clientSocket.off('game-joined', onGameJoined);
+          expect(error.code).toBe('GAME_NOT_FOUND');
+          resolve(error);
+        };
+
+        const onGameJoined = (data) => {
+          clearTimeout(timeout);
+          clientSocket.off('error', onError);
+          clientSocket.off('game-joined', onGameJoined);
+          reject(new Error('Expected error but got game-joined'));
+        };
+
+        clientSocket.on('error', onError);
+        clientSocket.on('game-joined', onGameJoined);
+      });
+
       clientSocket.emit('join-game', {
         code: 'INVALID',
         playerId: hostPlayer._id.toString()
       });
 
-      clientSocket.on('error', (error) => {
-        expect(error.code).toBe('GAME_NOT_FOUND');
-        done();
-      });
+      await errorPromise;
     });
 
     test('should broadcast to game room', (done) => {
