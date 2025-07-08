@@ -48,9 +48,7 @@ const HostGamePage = () => {
         allowJoinAfterStart: settings.allowJoinAfterStart,
         questionPoolSize: settings.questionPoolSize,
         timeLimit: settings.timeLimit,
-        roundTypes: Object.keys(settings.roundTypes)
-          .filter(key => settings.roundTypes[key])
-          .map(key => key)
+        roundTypes: settings.roundTypes  // Send the full object with boolean values
       };
 
       console.log('Creating game with settings:', gameSettings);
@@ -59,36 +57,53 @@ const HostGamePage = () => {
       const createdGame = await gameSessionService.createGameSession(gameSettings);
       console.log('Game created successfully:', createdGame);
 
-      if (!createdGame || !createdGame._id) {
+      if (!createdGame || (!createdGame.id && !createdGame.id)) {
         throw new Error('Invalid game session data returned from server');
       }
 
-      // Connect to host namespace
-      connectToNamespace('host', {
-        playerId: player._id,
-        gameSessionId: createdGame._id,
-        isHost: true
-      });
+      // Use either _id (MongoDB) or id (PostgreSQL) for compatibility
+      const gameId = createdGame.id || createdGame.id;
+      const gameCode = createdGame.code;
 
       // Store game session ID in localStorage for recovery if needed
-      localStorage.setItem('lastCreatedGameId', createdGame._id);
-      localStorage.setItem('lastCreatedGameCode', createdGame.code);
+      localStorage.setItem('lastCreatedGameId', gameId);
+      localStorage.setItem('lastCreatedGameCode', gameCode);
+      localStorage.setItem('lastHostedGameId', gameId);
+      localStorage.setItem('lastHostedGameCode', gameCode);
 
       // Create a simplified version of the game session to pass in state
       // This avoids potential circular reference issues
       const gameSessionForState = {
-        _id: createdGame._id,
-        code: createdGame.code,
+        _id: gameId, // Use the compatible ID we determined above
+        id: gameId,  // Include both for compatibility
+        code: gameCode,
         hostId: createdGame.hostId,
         status: createdGame.status,
-        settings: createdGame.settings
+        settings: createdGame.settings,
+        rounds: createdGame.rounds || []  // Include rounds data
       };
 
       console.log('Automatically navigating to Game Master Console');
       console.log('Passing game session to state:', gameSessionForState);
 
-      // Navigate directly to the Game Master Console
-      navigate(`/game-master/${createdGame._id}`, {
+      // Connect to host namespace with a promise to ensure connection is established
+      try {
+        console.log('Connecting to host namespace...');
+        await connectToNamespace('host', {
+          playerId: player?.id || player?.id, // Support both ID formats
+          gameSessionId: gameId, // Use the compatible game ID
+          isHost: true
+        });
+        console.log('Socket connection to host namespace established');
+      } catch (socketError) {
+        console.error('Error connecting to host namespace:', socketError);
+        // Continue anyway, as the GameMasterPage will attempt to reconnect
+      }
+
+      // Use replace instead of push to prevent back button from returning to this page
+      // This helps prevent the flickering issue
+      navigate(`/game-master/${gameId}`, {
+        replace: true,
         state: {
           gameSession: gameSessionForState,
           fromHostPage: true

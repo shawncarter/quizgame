@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import GameSessionInfo from './GameSessionInfo';
@@ -10,6 +10,7 @@ import GameControlPanel from './GameControlPanel';
 import PlayerStatusPanel from './PlayerStatusPanel';
 import PointBuilderRound from './PointBuilderRound';
 import GraduatedPointsRound from './GraduatedPointsRound';
+import SidebarNav from './SidebarNav';
 import './GameMasterDashboard.css';
 
 /**
@@ -20,6 +21,9 @@ const GameMasterDashboard = () => {
   // Get the game ID from URL parameters as a fallback
   const params = useParams();
   const urlGameId = params.gameId;
+
+  // State for active section - moved to top level to fix React Hook linting error
+  const [activeSection, setActiveSection] = useState('game-settings');
 
   const navigate = useNavigate();
   const {
@@ -38,7 +42,7 @@ const GameMasterDashboard = () => {
   // We don't need to connect to the game session here as it's already handled in GameMasterPage
   // This prevents duplicate connection attempts
   useEffect(() => {
-    console.log('GameMasterDashboard mounted with gameSession:', gameSession ? gameSession._id : 'none');
+    console.log('GameMasterDashboard mounted with gameSession:', gameSession ? gameSession.id : 'none');
     console.log('URL game ID:', urlGameId);
     console.log('Game session already connected in parent component:', !!gameSession);
 
@@ -140,9 +144,16 @@ const GameMasterDashboard = () => {
 
   // Determine which round interface to show based on the current round type
   const renderRoundInterface = () => {
-    if (!currentRound) return null;
+    if (!currentRound) {
+      return (
+        <div className="no-round-selected">
+          <h3>No Round Selected</h3>
+          <p>Select or create a round from the Rounds tab to begin.</p>
+        </div>
+      );
+    }
 
-    // Check if it's a Point Builder round
+    // Render the appropriate round interface based on type
     if (currentRound.type === 'pointBuilder' || currentRound.type === 'point-builder') {
       return (
         <PointBuilderRound
@@ -153,7 +164,6 @@ const GameMasterDashboard = () => {
       );
     }
 
-    // Check if it's a Graduated Points round
     if (currentRound.type === 'graduated-points') {
       return (
         <GraduatedPointsRound
@@ -166,7 +176,7 @@ const GameMasterDashboard = () => {
 
     // Default round interface
     return (
-      <>
+      <div className="standard-round-interface">
         <QuestionDisplayPanel
           currentQuestion={currentQuestion}
           currentRound={currentRound}
@@ -178,9 +188,102 @@ const GameMasterDashboard = () => {
           currentQuestion={currentQuestion}
           gameStatus={gameStatus}
         />
-      </>
+      </div>
     );
   };
+
+  // Navigation items
+  const navItems = [
+    {
+      id: 'game-settings',
+      label: 'Game Settings',
+      icon: '⚙️'
+    },
+    {
+      id: 'rounds',
+      label: 'Rounds',
+      icon: '🔄'
+    },
+    {
+      id: 'players',
+      label: 'Players',
+      icon: '👥'
+    }
+  ];
+
+  // Render content based on active section
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'game-settings':
+        return (
+          <div className="content-section">
+            <h2 className="section-title">Game Settings</h2>
+            <div className="content-grid">
+              <div className="content-panel">
+                <GameConfigPanel
+                  gameSession={gameSession}
+                  gameStatus={gameStatus}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      case 'rounds':
+        return (
+          <div className="content-section">
+            <h2 className="section-title">Rounds</h2>
+            <div className="content-grid">
+              <div className="content-panel">
+                <RoundSelectionPanel
+                  gameSession={gameSession}
+                  currentRound={currentRound}
+                  gameStatus={gameStatus}
+                />
+              </div>
+            </div>
+
+            {currentRound && (
+              <div className="current-round-interface">
+                <h3 className="subsection-title">Current Round: {currentRound.name || 'Unnamed Round'}</h3>
+                {renderRoundInterface()}
+              </div>
+            )}
+          </div>
+        );
+      case 'players':
+        return (
+          <div className="content-section">
+            <h2 className="section-title">Players</h2>
+            <div className="content-grid">
+              <div className="content-panel">
+                <PlayerManagementPanel
+                  players={players}
+                  gameStatus={gameStatus}
+                  gameSession={gameSession}
+                />
+              </div>
+            </div>
+
+            <div className="player-status-section">
+              <h3 className="subsection-title">Player Status</h3>
+              <div className="content-grid">
+                <div className="content-panel">
+                  <PlayerStatusPanel
+                    players={players}
+                    currentQuestion={currentQuestion}
+                    gameStatus={gameStatus}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // We're using the navItems defined earlier
 
   return (
     <div className="game-master-dashboard">
@@ -189,33 +292,27 @@ const GameMasterDashboard = () => {
       </div>
 
       <div className="dashboard-main">
-        <div className="dashboard-left">
-          <GameConfigPanel
-            gameSession={gameSession}
-            gameStatus={gameStatus}
-          />
-          <RoundSelectionPanel
-            gameSession={gameSession}
-            currentRound={currentRound}
-            gameStatus={gameStatus}
-          />
-          <PlayerManagementPanel
-            players={players}
-            gameStatus={gameStatus}
+        <div className="dashboard-sidebar">
+          <SidebarNav
+            items={navItems}
+            activeItem={activeSection}
+            onItemClick={setActiveSection}
           />
         </div>
 
-        <div className="dashboard-center">
-          {renderRoundInterface()}
+        <div className="dashboard-content">
+          {renderContent()}
         </div>
-
-        <div className="dashboard-right">
-          <PlayerStatusPanel
-            players={players}
-            currentQuestion={currentQuestion}
-            gameStatus={gameStatus}
-          />
-        </div>
+      </div>
+      
+      {/* Always show game controls at the bottom of the dashboard */}
+      <div className="dashboard-footer">
+        <GameControlPanel
+          gameSession={gameSession}
+          currentRound={currentRound}
+          currentQuestion={currentQuestion}
+          gameStatus={gameStatus}
+        />
       </div>
     </div>
   );

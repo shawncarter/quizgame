@@ -16,9 +16,10 @@ import PlayerLobbyPage from './pages/PlayerLobbyPage'
 import PlayerGamePage from './pages/PlayerGamePage'
 import HostGamePage from './pages/HostGamePage'
 import GameMasterPage from './pages/GameMasterPage'
+import JoinGame from './pages/JoinGame'
+import TestPage from './pages/TestPage'
 
 // Placeholder components - these will be created in future tasks
-const JoinGame = () => <div>Join Game Page</div>
 const Lobby = () => <div>Game Lobby</div>
 
 function App() {
@@ -31,7 +32,7 @@ function App() {
               <header>
                 <h1>QuizGame</h1>
               </header>
-              
+
               <main>
                 <Routes>
                   <Route path="/" element={<Home />} />
@@ -43,16 +44,17 @@ function App() {
                   <Route path="/game-master/:gameId" element={<GameMasterPage />} />
                   <Route path="/game/:gameId" element={<PlayerGamePage />} />
                   <Route path="/qr-code/:id" element={<GameQRCodePage />} />
-                  
+
                   {/* Player-related routes */}
                   <Route path="/register" element={<PlayerRegistrationPage />} />
                   <Route path="/profile" element={<PlayerProfilePage />} />
                   <Route path="/profile/edit" element={<PlayerProfileEditPage />} />
                   <Route path="/profile/:id" element={<PlayerProfilePage />} />
                   <Route path="/players" element={<PlayerLobbyPage />} />
+                  <Route path="/test" element={<TestPage />} />
                 </Routes>
               </main>
-              
+
               <footer>
                 <p>&copy; 2025 QuizGame</p>
               </footer>

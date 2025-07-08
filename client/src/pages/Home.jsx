@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useContext } from 'react';
 import ConnectionStatus from '../components/common/ConnectionStatus';
 import SocketTester from '../components/common/SocketTester';
+import HostedGames from '../components/Host/HostedGames';
 import { usePlayer } from '../context/PlayerContext';
 import { SocketContext } from '../context/SocketContext';
 import './Home.css';
@@ -14,7 +15,7 @@ const Home = () => {
   const { isLoggedIn, player } = usePlayer();
   const { needsRegistration, setNeedsRegistration } = useContext(SocketContext);
   const navigate = useNavigate();
-  
+
   // Redirect to registration page if needed, but only if not already logged in
   useEffect(() => {
     if (needsRegistration && !isLoggedIn) {
@@ -23,13 +24,13 @@ const Home = () => {
       navigate('/register');
     }
   }, [needsRegistration, navigate, isLoggedIn, setNeedsRegistration]);
-  
+
   return (
     <div className="home-container">
       <h2>Welcome to QuizGame!</h2>
-      
+
       <ConnectionStatus />
-      
+
       <div className="player-status">
         {isLoggedIn ? (
           <div className="player-welcome">
@@ -43,7 +44,7 @@ const Home = () => {
           </div>
         )}
       </div>
-      
+
       <div className="actions">
         <Link to="/host" className="action-button host">
           Host a Game
@@ -58,7 +59,10 @@ const Home = () => {
           Player Lobby
         </Link>
       </div>
-      
+
+      {/* Display hosted games if the user is logged in */}
+      {isLoggedIn && <HostedGames />}
+
       <div className="info-section">
         <h3>About QuizGame</h3>
         <p>
@@ -67,7 +71,7 @@ const Home = () => {
           session with a game code or by scanning a QR code.
         </p>
       </div>
-      
+
       {/* Socket tester - will be removed in production */}
       <div className="debug-section">
         <details>

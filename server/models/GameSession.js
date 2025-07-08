@@ -1,195 +1,197 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
-
-const GameSessionSchema = new Schema({
-  code: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
-  hostId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Player',
-    required: true
-  },
-  players: [{
-    playerId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Player'
+module.exports = (sequelize, DataTypes) => {
+  const GameSession = sequelize.define('GameSession', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
-    score: {
-      type: Number,
-      default: 0
+    code: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true
     },
-    position: {
-      type: Number,
-      default: 0
+    hostId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'Players',
+        key: 'id'
+      }
     },
-    joinedAt: {
-      type: Date,
-      default: Date.now
+    players: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: []
     },
-    active: {
-      type: Boolean,
-      default: true
+    rounds: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: []
+    },
+    status: {
+      type: DataTypes.ENUM('created', 'lobby', 'active', 'paused', 'completed'),
+      defaultValue: 'created'
+    },
+    settings: {
+      type: DataTypes.JSONB,
+      defaultValue: {
+        maxPlayers: 10,
+        publicGame: true,
+        allowJoinAfterStart: true,
+        questionPoolSize: 30
+      }
+    },
+    currentRound: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    currentQuestion: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    startedAt: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    endedAt: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
-  }],
-  rounds: [{
-    type: {
-      type: String,
-      enum: ['pointBuilder', 'graduatedPoints', 'fastestFinger', 'specialist'],
-      required: true
-    },
-    title: {
-      type: String,
-      required: true
-    },
-    description: {
-      type: String
-    },
-    questions: [{
-      type: Schema.Types.ObjectId,
-      ref: 'Question'
-    }],
-    completed: {
-      type: Boolean,
-      default: false
-    },
-    timeLimit: {
-      type: Number,  // Time limit per question in seconds
-      default: 30
-    }
-  }],
-  status: {
-    type: String,
-    enum: ['created', 'lobby', 'active', 'paused', 'completed'],
-    default: 'created'
-  },
-  settings: {
-    maxPlayers: {
-      type: Number,
-      default: 10
-    },
-    publicGame: {
-      type: Boolean,
-      default: true
-    },
-    allowJoinAfterStart: {
-      type: Boolean,
-      default: false
-    },
-    questionPoolSize: {
-      type: Number,
-      default: 30  // Number of questions to generate for the game
-    }
-  },
-  currentRound: {
-    type: Number,
-    default: 0
-  },
-  currentQuestion: {
-    type: Number,
-    default: 0
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  startedAt: {
-    type: Date
-  },
-  endedAt: {
-    type: Date
-  }
-});
+  }, {
+    timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['code']
+      },
+      {
+        fields: ['hostId']
+      },
+      {
+        fields: ['status']
+      }
+    ]
+  });
 
-// Methods to manage game state
-GameSessionSchema.methods.startGame = function() {
-  this.status = 'active';
-  this.startedAt = new Date();
-  return this.save();
-};
-
-GameSessionSchema.methods.endGame = function() {
-  this.status = 'completed';
-  this.endedAt = new Date();
-  return this.save();
-};
-
-GameSessionSchema.methods.updatePlayerScore = function(playerId, scoreToAdd) {
-  const playerIndex = this.players.findIndex(p => p.playerId.toString() === playerId.toString());
-  if (playerIndex !== -1) {
-    this.players[playerIndex].score += scoreToAdd;
-    // Update positions based on scores
-    this.updatePlayerPositions();
+  // Instance methods
+  GameSession.prototype.startGame = function() {
+    this.status = 'active';
+    this.startedAt = new Date();
     return this.save();
-  }
-  return Promise.reject(new Error('Player not found in this game session'));
-};
+  };
 
-GameSessionSchema.methods.updatePlayerPositions = function() {
-  // Sort players by score in descending order
-  this.players.sort((a, b) => b.score - a.score);
-  
-  // Update positions (handling ties - players with the same score get the same position)
-  let position = 1;
-  let lastScore = null;
-  let lastPosition = 1;
-  
-  this.players.forEach((player, index) => {
-    if (index === 0) {
-      player.position = position;
-      lastScore = player.score;
-    } else {
-      if (player.score === lastScore) {
-        player.position = lastPosition;
-      } else {
-        position = index + 1;
+  GameSession.prototype.endGame = function() {
+    this.status = 'completed';
+    this.endedAt = new Date();
+    return this.save();
+  };
+
+  GameSession.prototype.updatePlayerScore = function(playerId, scoreToAdd) {
+    const players = this.players;
+    const playerIndex = players.findIndex(p => p.playerId === playerId);
+
+    if (playerIndex !== -1) {
+      players[playerIndex].score += scoreToAdd;
+      // Update positions based on scores
+      this.updatePlayerPositions();
+      this.changed('players', true);
+      return this.save();
+    }
+
+    return Promise.reject(new Error('Player not found in this game session'));
+  };
+
+  GameSession.prototype.updatePlayerPositions = function() {
+    const players = this.players;
+
+    // Sort players by score in descending order
+    players.sort((a, b) => b.score - a.score);
+
+    // Update positions (handling ties - players with the same score get the same position)
+    let position = 1;
+    let lastScore = null;
+    let lastPosition = 1;
+
+    players.forEach((player, index) => {
+      if (index === 0) {
         player.position = position;
-        lastPosition = position;
         lastScore = player.score;
+      } else {
+        if (player.score === lastScore) {
+          player.position = lastPosition;
+        } else {
+          position = index + 1;
+          player.position = position;
+          lastPosition = position;
+          lastScore = player.score;
+        }
+      }
+    });
+
+    this.changed('players', true);
+  };
+
+  GameSession.prototype.moveToNextQuestion = function() {
+    const rounds = this.rounds;
+    const currentRound = rounds[this.currentRound];
+
+    if (!currentRound) return Promise.reject(new Error('No active round'));
+
+    if (this.currentQuestion < currentRound.questions.length - 1) {
+      this.currentQuestion += 1;
+    } else {
+      // End of round
+      currentRound.completed = true;
+      this.changed('rounds', true);
+
+      // Check if there are more rounds
+      if (this.currentRound < rounds.length - 1) {
+        this.currentRound += 1;
+        this.currentQuestion = 0;
+      } else {
+        // End of game
+        this.status = 'completed';
+        this.endedAt = new Date();
       }
     }
-  });
-};
 
-GameSessionSchema.methods.moveToNextQuestion = function() {
-  const currentRound = this.rounds[this.currentRound];
-  if (!currentRound) return Promise.reject(new Error('No active round'));
-  
-  if (this.currentQuestion < currentRound.questions.length - 1) {
-    this.currentQuestion += 1;
-  } else {
-    // End of round
-    currentRound.completed = true;
-    // Check if there are more rounds
-    if (this.currentRound < this.rounds.length - 1) {
-      this.currentRound += 1;
-      this.currentQuestion = 0;
-    } else {
-      // End of game
-      this.status = 'completed';
-      this.endedAt = new Date();
-    }
-  }
-  
-  return this.save();
-};
+    return this.save();
+  };
 
-// Static methods for finding games
-GameSessionSchema.statics.findByCode = function(code) {
-  return this.findOne({ code });
-};
+  // Set up associations
+  GameSession.associate = function(models) {
+    GameSession.belongsTo(models.Player, {
+      foreignKey: 'hostId',
+      as: 'host'
+    });
 
-GameSessionSchema.statics.getActiveGames = function() {
-  return this.find({ status: { $in: ['lobby', 'active', 'paused'] } });
-};
+    GameSession.hasMany(models.GameHistory, {
+      foreignKey: 'gameSessionId'
+    });
+  };
 
-GameSessionSchema.statics.getRecentGames = function(limit = 10) {
-  return this.find({ status: 'completed' })
-    .sort({ endedAt: -1 })
-    .limit(limit);
-};
+  // Static methods
+  GameSession.findByCode = function(code) {
+    return GameSession.findOne({ where: { code } });
+  };
 
-module.exports = mongoose.model('GameSession', GameSessionSchema);
+  GameSession.getActiveGames = function() {
+    return GameSession.findAll({
+      where: {
+        status: {
+          [sequelize.Op.in]: ['lobby', 'active', 'paused']
+        }
+      }
+    });
+  };
+
+  GameSession.getRecentGames = function(limit = 10) {
+    return GameSession.findAll({
+      where: { status: 'completed' },
+      order: [['endedAt', 'DESC']],
+      limit
+    });
+  };
+
+  return GameSession;
+};

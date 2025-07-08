@@ -27,10 +27,10 @@ const PlayerProfile = () => {
   // Load player stats
   useEffect(() => {
     const fetchStats = async () => {
-      if (player && player._id) {
+      if (player && player?.id) {
         try {
           setLoadingStats(true);
-          const playerStats = await playerApiService.getPlayerStats(player._id);
+          const playerStats = await playerApiService.getPlayerStats(player?.id);
           setStats(playerStats);
         } catch (err) {
           console.error('Error loading player stats:', err);

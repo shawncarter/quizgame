@@ -10,9 +10,7 @@ import {
 } from '../services/gameSocketService';
 import { usePlayer } from './PlayerContext';
 import { io } from 'socket.io-client';
-
-// Import API_URL from the same place it's defined in other services
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL, SOCKET_URL } from '../config/config';
 
 // Socket.io connection options
 const socketOptions = {
@@ -49,6 +47,7 @@ export const GameProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
 
   // Clean up socket connection on unmount
   useEffect(() => {
@@ -67,7 +66,8 @@ export const GameProvider = ({ children }) => {
    */
   const connectToGame = useCallback(async (gameId, options = {}) => {
     try {
-      if (!player || !player._id) {
+      const playerId = player?.id || player?.id; // Support both ID formats
+      if (!player || !playerId) {
         throw new Error('Player not authenticated');
       }
 
@@ -80,21 +80,22 @@ export const GameProvider = ({ children }) => {
       }
 
       console.log('=== GAME CONTEXT - CONNECT TO GAME ===');
-      console.log(`Attempting to connect to game: ${gameId} as player: ${player._id}`);
+      console.log(`Attempting to connect to game: ${gameId} as player: ${playerId}`);
       console.log('Current game status:', gameStatus);
       console.log('Current game session:', gameSession);
       console.log('Current error state:', error);
       console.log('Current socket connection:', socket ? 'Connected' : 'Not connected');
       console.log('Current players:', players);
       console.log('Options provided:', options);
+      console.log('Options gameSessionData:', options?.gameSessionData);
 
       setGameStatus('loading');
       setError(null);
 
       // Check if we have game session data in location state
-      const locationState = window.history.state?.usr;
-      console.log('Location state from window.history:', locationState);
-      const gameSessionFromState = locationState?.gameSession;
+      // This will be undefined if not passed through options, which is fine
+      const gameSessionFromState = options?.gameSessionData;
+      console.log('Game session from options:', gameSessionFromState);
 
       // Also check localStorage as a backup
       const lastCreatedGameId = localStorage.getItem('lastCreatedGameId');
@@ -110,10 +111,17 @@ export const GameProvider = ({ children }) => {
           console.log('Using provided game session data from options');
           gameData = options.gameSessionData;
           console.log('Game data from options:', gameData);
-        } else if (gameSessionFromState && gameSessionFromState._id === gameId) {
-          console.log('Using game session data from location state');
-          gameData = gameSessionFromState;
-          console.log('Game data from location state:', gameData);
+        } else if (gameSessionFromState) {
+          const gameSessionStateId = gameSessionFromState.id || gameSessionFromState.id; // Support both ID formats
+          console.log('Game session state ID from options:', gameSessionStateId);
+          console.log('Comparing with target gameId:', gameId);
+          if (gameSessionStateId && gameSessionStateId.toString() === gameId.toString()) {
+            console.log('Using game session data from options');
+            gameData = gameSessionFromState;
+            console.log('Game data from options (location state):', gameData);
+          } else {
+            console.log('Game session ID mismatch, fetching from API instead');
+          }
         } else {
           // Otherwise fetch from API
           console.log('Fetching game session data from API...');
@@ -141,22 +149,28 @@ export const GameProvider = ({ children }) => {
         }
 
         // Validate the game data
-        if (!gameData || !gameData._id) {
+        const gameDataId = gameData.id || gameData.id; // Support both ID formats
+        if (!gameData || !gameDataId) {
           throw new Error('Game session not found or invalid');
         }
 
         console.log('Successfully loaded game session:', gameData);
         setGameSession(gameData);
 
-        // Get players in the game session
-        // Only fetch players if we didn't get them from location state
-        if (!options?.gameSessionData && !gameSessionFromState) {
-          const playersData = await gameApiService.getGameSessionPlayers(gameId);
-          setPlayers(playersData || []);
-          console.log('Loaded players:', playersData?.length || 0);
-        } else if (gameData.players) {
+        // Use players from the game session data if available
+        if (gameData.players && Array.isArray(gameData.players)) {
           setPlayers(gameData.players);
-          console.log('Using players from provided data:', gameData.players.length);
+          console.log('Using players from game session data:', gameData.players.length);
+        } else {
+          // Only fetch players separately if not included in game session data
+          try {
+            const playersData = await gameApiService.getGameSessionPlayers(gameId);
+            setPlayers(playersData || []);
+            console.log('Fetched players separately:', playersData?.length || 0);
+          } catch (playersError) {
+            console.warn('Could not fetch players separately, using empty array:', playersError.message);
+            setPlayers([]); // Use empty array if players fetch fails
+          }
         }
       } catch (apiError) {
         console.error('API Error fetching game data:', apiError);
@@ -169,12 +183,16 @@ export const GameProvider = ({ children }) => {
       // Create a new socket connection
       console.log('Creating socket connection...');
 
-      // Make sure the socket URL doesn't contain /api
-      const baseUrl = API_URL ? API_URL.replace('/api', '') : 'http://localhost:5000';
+      // Use the SOCKET_URL for socket connections
+      const baseUrl = SOCKET_URL.includes('/api') ? SOCKET_URL.replace('/api', '') : SOCKET_URL;
       console.log('Using socket URL:', baseUrl);
 
+      // Make sure we have a clean gameId (no spaces or unusual characters)
+      const cleanGameId = gameId.trim();
+      console.log('Using cleaned gameId:', cleanGameId);
+
       // Create the socket with the correct URL
-      let newSocket = createHostSocket(player._id, gameId);
+      let newSocket = createHostSocket(playerId, cleanGameId);
 
       // Set up socket event handlers
       setupGameMasterHandlers(newSocket, {
@@ -197,10 +215,10 @@ export const GameProvider = ({ children }) => {
         onPlayerJoin: (playerData) => {
           console.log('Player joined:', playerData);
           setPlayers(current => {
-            const exists = current.some(p => p.playerId._id === playerData.playerId._id);
+            const exists = current.some(p => p.playerId.id === playerData.playerId.id);
             if (exists) {
               return current.map(p =>
-                p.playerId._id === playerData.playerId._id ? playerData : p
+                p.playerId.id === playerData.playerId.id ? playerData : p
               );
             }
             return [...current, playerData];
@@ -209,8 +227,23 @@ export const GameProvider = ({ children }) => {
         onPlayerLeave: (playerId) => {
           console.log('Player left:', playerId);
           setPlayers(current =>
-            current.filter(p => p.playerId._id !== playerId)
+            current.filter(p => p.playerId.id !== playerId)
           );
+        },
+        onPlayersUpdated: (data) => {
+          console.log('Players updated:', data);
+          if (data.players) {
+            setPlayers(data.players);
+          }
+        },
+        onGameUpdated: (data) => {
+          console.log('Game updated:', data);
+          if (data.gameSession) {
+            setGameSession(data.gameSession);
+          }
+          if (data.players) {
+            setPlayers(data.players);
+          }
         },
         onError: (errorData) => {
           console.error('Socket error:', errorData);
@@ -222,35 +255,41 @@ export const GameProvider = ({ children }) => {
       try {
         console.log('Connecting to socket...');
 
-        // Check if the socket URL is correct
-        if (newSocket.io.uri.includes('/api/')) {
-          console.warn('Socket URL contains /api/ which may cause connection issues. Fixing URL...');
-          // Disconnect the current socket
-          disconnectSocket(newSocket);
+        // The URL is already corrected in createHostSocket()
+        // Just add more logging for debugging
+        console.log('Socket connection details before connect:');
+        console.log('- Socket ID:', newSocket.id);
+        console.log('- Socket URI:', newSocket.io.uri);
+        console.log('- Socket Namespace:', newSocket.nsp);
+        console.log('- Socket Auth:', newSocket.auth);
+        console.log('- Socket Options:', newSocket.io.opts);
 
-          // Create a new socket with the correct URL
-          const baseUrl = API_URL ? API_URL.replace('/api', '') : 'http://localhost:5000';
-          console.log('Using corrected socket URL:', `${baseUrl}/host`);
-
-          // Create a new socket with the correct URL
-          const correctedSocket = io(`${baseUrl}/host`, {
-            ...socketOptions,
-            path: '/socket.io',
-            auth: {
-              playerId: player._id,
-              gameSessionId: gameId,
-              isHost: true
-            }
-          });
-
-          // Use the corrected socket
-          newSocket = correctedSocket;
+        // Track connection attempts
+        setConnectionAttempts(prev => prev + 1);
+        
+        try {
+          await connectSocket(newSocket);
+          setSocket(newSocket);
+          setIsConnected(true);
+          console.log('Socket successfully connected');
+          
+          // Reset connection attempts on success
+          setConnectionAttempts(0);
+        } catch (connectError) {
+          console.error('Failed to connect socket:', connectError);
+          
+          if (connectionAttempts < 2) {
+            // Try once more with different transport options
+            console.log(`Retrying connection (attempt ${connectionAttempts + 1})...`);
+            newSocket.io.opts.transports = ['polling', 'websocket'];
+            await connectSocket(newSocket);
+            setSocket(newSocket);
+            setIsConnected(true);
+            console.log('Socket successfully connected on retry');
+          } else {
+            throw connectError;
+          }
         }
-
-        await connectSocket(newSocket);
-        setSocket(newSocket);
-        setIsConnected(true);
-        console.log('Socket successfully connected');
 
         // Request initial game state via socket
         newSocket.emit('game:request_state');
@@ -283,10 +322,11 @@ export const GameProvider = ({ children }) => {
 
   /**
    * Disconnect from the game session
-   * @param {boolean} preserveState - Whether to preserve the game state (default: false)
+   * @param {boolean} preserveState - Whether to preserve the game state (default: true)
    */
-  const disconnectFromGame = useCallback((preserveState = false) => {
+  const disconnectFromGame = useCallback((preserveState = true) => {
     if (socket) {
+      console.log('Disconnecting socket connection');
       disconnectSocket(socket);
       setSocket(null);
       setIsConnected(false);
@@ -294,6 +334,7 @@ export const GameProvider = ({ children }) => {
 
     // Only reset game state if preserveState is false
     if (!preserveState) {
+      console.log('Resetting game state during disconnect');
       setGameSession(null);
       setPlayers([]);
       setCurrentRound(null);
@@ -304,6 +345,8 @@ export const GameProvider = ({ children }) => {
       setError(null);
     } else {
       console.log('Disconnected from socket but preserving game state');
+      // Just update the connection status but keep the game data
+      setIsReconnecting(false);
     }
   }, [socket]);
 
@@ -323,7 +366,7 @@ export const GameProvider = ({ children }) => {
       const newGame = await gameApiService.createGameSession(gameData);
 
       // Navigate to the game master page
-      navigate(`/game-master/${newGame._id}`);
+      navigate(`/game-master/${newGame.id}`);
 
       return newGame;
     } catch (err) {
@@ -344,7 +387,13 @@ export const GameProvider = ({ children }) => {
         throw new Error('No active game session');
       }
 
-      const updatedGame = await gameApiService.updateGameSession(gameSession._id, updates);
+      // Support both _id (MongoDB) and id (PostgreSQL) formats
+      const gameSessionId = gameSession.id || gameSession.id;
+      if (!gameSessionId) {
+        throw new Error('Game session ID not found');
+      }
+
+      const updatedGame = await gameApiService.updateGameSession(gameSessionId, updates);
       setGameSession(updatedGame);
 
       return updatedGame;
@@ -369,8 +418,14 @@ export const GameProvider = ({ children }) => {
           throw new Error('No active game session');
         }
 
+        // Support both _id (MongoDB) and id (PostgreSQL) formats
+        const gameSessionId = gameSession.id || gameSession.id;
+        if (!gameSessionId) {
+          throw new Error('Game session ID not found');
+        }
+
         // Update via API
-        await gameApiService.startGameSession(gameSession._id);
+        await gameApiService.startGameSession(gameSessionId);
 
         // Emit via socket
         if (emitters.startGame) {
@@ -394,8 +449,14 @@ export const GameProvider = ({ children }) => {
           throw new Error('No active game session');
         }
 
+        // Support both _id (MongoDB) and id (PostgreSQL) formats
+        const gameSessionId = gameSession.id || gameSession.id;
+        if (!gameSessionId) {
+          throw new Error('Game session ID not found');
+        }
+
         // Update via API
-        await gameApiService.endGameSession(gameSession._id);
+        await gameApiService.endGameSession(gameSessionId);
 
         // Emit via socket
         if (emitters.endGame) {
@@ -551,7 +612,7 @@ export const GameProvider = ({ children }) => {
         }
 
         // Update local state
-        setPlayers(prev => prev.filter(p => p._id !== playerId));
+        setPlayers(prev => prev.filter(p => p.id !== playerId));
       } catch (err) {
         console.error('Error kicking player:', err);
         setError(err.message || 'Failed to kick player');
@@ -633,6 +694,7 @@ export const GameProvider = ({ children }) => {
     error,
     isConnected,
     isReconnecting,
+    connectionAttempts,
 
     // Connection functions
     connectToGame,

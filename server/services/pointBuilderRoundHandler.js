@@ -28,7 +28,7 @@ async function processPointBuilderAnswer(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -48,7 +48,7 @@ async function processPointBuilderAnswer(socket, data) {
     }
     
     // Find question
-    const question = await Question.findById(questionId);
+    const question = await Question.findByPk(questionId);
     if (!question) {
       throw createSocketError('Question not found', 'QUESTION_NOT_FOUND');
     }
@@ -161,7 +161,7 @@ async function revealPointBuilderAnswer(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -172,7 +172,7 @@ async function revealPointBuilderAnswer(socket, data) {
     }
     
     // Find question
-    const question = await Question.findById(questionId);
+    const question = await Question.findByPk(questionId);
     if (!question) {
       throw createSocketError('Question not found', 'QUESTION_NOT_FOUND');
     }
@@ -274,7 +274,7 @@ async function getPointBuilderStandings(socket) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }

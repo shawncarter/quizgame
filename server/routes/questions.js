@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeGameMaster } = require('../middleware/auth');
-const { Question } = require('../models');
+const { Question, sequelize } = require('../models');
 const anthropicService = require('../services/anthropicService');
 
 // Public routes
@@ -21,13 +21,15 @@ router.get('/', async (req, res) => {
     if (type) query.type = type;
     
     // Execute query with pagination
-    const questions = await Question.find(query)
-      .sort({ createdAt: -1 })
-      .skip(parseInt(skip))
-      .limit(parseInt(limit));
-    
+    const questions = await Question.findAll({
+      where: query,
+      order: [['createdAt', 'DESC']],
+      offset: parseInt(skip),
+      limit: parseInt(limit)
+    });
+
     // Get total count for pagination
-    const total = await Question.countDocuments(query);
+    const total = await Question.count({where: query});
     
     res.json({ 
       questions,
@@ -47,7 +49,7 @@ router.get('/', async (req, res) => {
 // Get a specific question by ID
 router.get('/:id', async (req, res) => {
   try {
-    const question = await Question.findById(req.params.id);
+    const question = await Question.findByPk(req.params.id);
     
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
@@ -71,11 +73,12 @@ router.get('/random', async (req, res) => {
     if (difficulty) query.difficulty = difficulty;
     if (type) query.type = type;
     
-    // Use the aggregate with $sample for random selection
-    const questions = await Question.aggregate([
-      { $match: query },
-      { $sample: { size: parseInt(count) } }
-    ]);
+    // Use Sequelize to get random questions
+    const questions = await Question.findAll({
+      where: query,
+      order: sequelize.random(),
+      limit: parseInt(count)
+    });
     
     if (questions.length === 0) {
       return res.status(404).json({ 
@@ -110,8 +113,7 @@ router.post('/', authorizeGameMaster, async (req, res) => {
     }
     
     // Create and save the question
-    const question = new Question(questionData);
-    await question.save();
+    const question = await Question.create(questionData);
     
     res.status(201).json(question);
   } catch (err) {
@@ -126,15 +128,17 @@ router.put('/:id', authorizeGameMaster, async (req, res) => {
     const questionData = req.body;
     
     // Find and update the question
-    const question = await Question.findByIdAndUpdate(
-      req.params.id,
-      questionData,
-      { new: true, runValidators: true }
-    );
-    
-    if (!question) {
+    const [updatedRowsCount] = await Question.update(questionData, {
+      where: { id: req.params.id }
+    });
+
+    if (updatedRowsCount === 0) {
       return res.status(404).json({ message: 'Question not found' });
     }
+
+    const question = await Question.findByPk(req.params.id);
+    
+
     
     res.json(question);
   } catch (err) {
@@ -146,7 +150,9 @@ router.put('/:id', authorizeGameMaster, async (req, res) => {
 // Delete a question (Game Master only)
 router.delete('/:id', authorizeGameMaster, async (req, res) => {
   try {
-    const question = await Question.findByIdAndDelete(req.params.id);
+    const question = await Question.findByPk(req.params.id);
+
+    await question.destroy();
     
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });

@@ -75,8 +75,8 @@ const PlayerStatusPanel = ({ players, currentQuestion, gameStatus }) => {
       <div className="player-status-list">
         {players.map(player => (
           <div 
-            key={player.playerId._id} 
-            className={`player-status-item ${!player.active ? 'inactive' : ''} ${getPlayerAnswerStatus(player.playerId._id)}`}
+            key={player.playerId.id} 
+            className={`player-status-item ${!player.active ? 'inactive' : ''} ${getPlayerAnswerStatus(player.playerId.id)}`}
           >
             <div className="player-info">
               <div className="player-avatar">
@@ -93,8 +93,8 @@ const PlayerStatusPanel = ({ players, currentQuestion, gameStatus }) => {
             </div>
             <div className="player-score">{player.score}</div>
             <div className="answer-status">
-              {playerAnswers[player.playerId._id] ? (
-                playerAnswers[player.playerId._id].correct ? (
+              {playerAnswers[player.playerId.id] ? (
+                playerAnswers[player.playerId.id].correct ? (
                   <span className="correct-badge">✓</span>
                 ) : (
                   <span className="incorrect-badge">✗</span>
@@ -115,7 +115,7 @@ const PlayerStatusPanel = ({ players, currentQuestion, gameStatus }) => {
       <div className="leaderboard">
         {sortedPlayers.slice(0, 10).map((player, index) => (
           <div 
-            key={player.playerId._id} 
+            key={player.playerId.id} 
             className={`leaderboard-item ${index < 3 ? 'top-three' : ''}`}
           >
             <div className="rank">#{index + 1}</div>

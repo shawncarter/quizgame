@@ -158,7 +158,7 @@ async function generateQuestionsForPlayer(playerId, category, count = 5) {
   try {
     // Get player profile from database
     const Player = require('../models/Player');
-    const player = await Player.findById(playerId);
+    const player = await Player.findByPk(playerId);
 
     if (!player) {
       throw new Error(`Player with ID ${playerId} not found`);
@@ -166,7 +166,7 @@ async function generateQuestionsForPlayer(playerId, category, count = 5) {
 
     // Extract relevant player information for personalization
     const playerProfile = {
-      id: player._id,
+      id: player.id,
       name: player.name,
       preferredCategories: player.preferences?.categories || [],
       difficultyLevel: player.preferences?.difficulty || 'medium',
@@ -197,7 +197,7 @@ async function generateSpecialistQuestions(playerId, specialistTopic, count = 5)
   try {
     // Get player profile from database
     const Player = require('../models/Player');
-    const player = await Player.findById(playerId);
+    const player = await Player.findByPk(playerId);
 
     if (!player) {
       throw new Error(`Player with ID ${playerId} not found`);
@@ -205,7 +205,7 @@ async function generateSpecialistQuestions(playerId, specialistTopic, count = 5)
 
     // Extract relevant player information for personalization
     const playerProfile = {
-      id: player._id,
+      id: player.id,
       name: player.name,
       specialistTopic
     };

@@ -78,7 +78,7 @@ const GameControlPanel = ({ gameSession, currentRound, currentQuestion, gameStat
     try {
       setIsLoading(true);
       setError(null);
-      await startRound({ roundId: currentRound._id });
+      await startRound({ roundId: currentRound.id });
     } catch (err) {
       console.error('Error starting round:', err);
       setError('Failed to start round');

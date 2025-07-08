@@ -27,9 +27,13 @@ Add the Anthropic API key to your `.env` file in the server root directory:
 
 ```
 # Existing environment variables
-MONGODB_URI=mongodb://localhost:27017/quizgame
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=quizgame
 JWT_SECRET=your_jwt_secret
-PORT=3000
+PORT=5000
 
 # Add Anthropic API key
 ANTHROPIC_API_KEY=your_anthropic_api_key_here

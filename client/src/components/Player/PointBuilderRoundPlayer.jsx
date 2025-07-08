@@ -97,8 +97,8 @@ const PointBuilderRoundPlayer = ({
       );
       
       // Update score if needed
-      if (data.playerResults && data.playerResults[playerData?._id]) {
-        const result = data.playerResults[playerData._id];
+      if (data.playerResults && data.playerResults[playerData?.id]) {
+        const result = data.playerResults[playerData.id];
         if (result.pointsEarned) {
           setRecentPoints(result.pointsEarned);
           setScore(prev => prev + result.pointsEarned);

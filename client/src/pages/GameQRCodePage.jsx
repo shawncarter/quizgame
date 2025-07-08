@@ -22,9 +22,12 @@ const GameQRCodePage = () => {
       return;
     }
 
+    console.log('Fetching game session with ID:', id);
+
     // Fetch game session details using the gameSessionService
     gameSessionService.getGameSessionById(id)
       .then(data => {
+        console.log('Game session data received:', data);
         setGameSession(data);
         setLoading(false);
       })
@@ -43,7 +46,7 @@ const GameQRCodePage = () => {
 
   // Handle back to game button click
   const handleBackToGame = () => {
-    navigate(`/host/game/${id}`);
+    navigate(`/game-master/${id}`);
   };
 
   if (loading) {
@@ -60,9 +63,9 @@ const GameQRCodePage = () => {
       <div className="game-qr-page error">
         <h2>Error</h2>
         <p>{error}</p>
-        <button 
+        <button
           className="game-qr-page-back-btn"
-          onClick={() => navigate('/host/dashboard')}
+          onClick={() => navigate('/host')}
         >
           Back to Dashboard
         </button>
@@ -75,9 +78,9 @@ const GameQRCodePage = () => {
       <div className="game-qr-page error">
         <h2>Game Not Found</h2>
         <p>The requested game session could not be found.</p>
-        <button 
+        <button
           className="game-qr-page-back-btn"
-          onClick={() => navigate('/host/dashboard')}
+          onClick={() => navigate('/host')}
         >
           Back to Dashboard
         </button>
@@ -91,49 +94,50 @@ const GameQRCodePage = () => {
         <h1>Join Game: {gameSession.title || 'Quiz Game'}</h1>
         <p>Scan this QR code to join the game</p>
       </div>
-      
+
       <div className="game-qr-page-content">
-        <QRCodeDisplay 
+        {console.log('Rendering QRCodeDisplay with code:', gameSession.code)}
+        <QRCodeDisplay
           gameCode={gameSession.code}
           size={300}
           includeText={true}
           onError={handleQRCodeError}
         />
       </div>
-      
+
       <div className="game-qr-page-info">
         <div className="game-qr-page-info-item">
           <span className="label">Game Code:</span>
           <span className="value">{gameSession.code}</span>
         </div>
-        
+
         <div className="game-qr-page-info-item">
           <span className="label">Status:</span>
           <span className="value status">{gameSession.status}</span>
         </div>
-        
+
         <div className="game-qr-page-info-item">
           <span className="label">Players:</span>
           <span className="value">{gameSession.players?.length || 0}</span>
         </div>
       </div>
-      
+
       <div className="game-qr-page-actions">
-        <button 
+        <button
           className="game-qr-page-back-btn"
           onClick={handleBackToGame}
         >
           Back to Game
         </button>
-        
-        <button 
+
+        <button
           className="game-qr-page-print-btn"
           onClick={() => window.print()}
         >
           Print QR Code
         </button>
       </div>
-      
+
       <div className="game-qr-page-instructions">
         <h3>Instructions for Players</h3>
         <ol>
@@ -143,9 +147,20 @@ const GameQRCodePage = () => {
           <li>Enter your name to join the game</li>
         </ol>
         <p className="alternative">
-          Alternatively, players can go to <strong>{window.location.origin}/join</strong> and enter the game code: <strong>{gameSession.code}</strong>
+          Alternatively, players can go to <strong>{import.meta.env.VITE_APP_URL || window.location.origin}/join</strong> and enter the game code: <strong>{gameSession.code}</strong>
         </p>
       </div>
+
+      {import.meta.env.VITE_ENABLE_DEBUG === 'true' && (
+        <div className="game-qr-page-debug">
+          <h4>Debug Information</h4>
+          <p>App URL: {import.meta.env.VITE_APP_URL || 'Not set'}</p>
+          <p>Server URL: {import.meta.env.VITE_SERVER_URL || 'Not set'}</p>
+          <p>API URL: {import.meta.env.VITE_API_URL || 'Not set'}</p>
+          <p>Window Origin: {window.location.origin}</p>
+          <p>Game Code: {gameSession.code}</p>
+        </div>
+      )}
     </div>
   );
 };

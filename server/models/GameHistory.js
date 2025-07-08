@@ -1,248 +1,193 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
-
-const GameHistorySchema = new Schema({
-  gameSession: {
-    type: Schema.Types.ObjectId,
-    ref: 'GameSession',
-    required: true
-  },
-  hostId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Player',
-    required: true
-  },
-  playerCount: {
-    type: Number,
-    required: true
-  },
-  players: [{
-    playerId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Player'
+module.exports = (sequelize, DataTypes) => {
+  const GameHistory = sequelize.define('GameHistory', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
-    name: {
-      type: String,
-      required: true
-    },
-    finalScore: {
-      type: Number,
-      default: 0
-    },
-    position: {
-      type: Number
-    },
-    joinedAt: {
-      type: Date
-    },
-    leftAt: {
-      type: Date
-    },
-    roundStats: [{
-      roundIndex: {
-        type: Number,
-        required: true
-      },
-      roundType: {
-        type: String,
-        required: true
-      },
-      score: {
-        type: Number,
-        default: 0
-      },
-      correctAnswers: {
-        type: Number,
-        default: 0
-      },
-      incorrectAnswers: {
-        type: Number,
-        default: 0
-      },
-      fastestAnswers: {
-        type: Number,
-        default: 0
-      },
-      averageResponseTime: {
-        type: Number  // in milliseconds
-      }
-    }]
-  }],
-  rounds: [{
-    index: {
-      type: Number,
-      required: true
-    },
-    type: {
-      type: String,
-      required: true
-    },
-    title: {
-      type: String,
-      required: true
-    },
-    questionCount: {
-      type: Number,
-      required: true
-    },
-    averageResponseTime: {
-      type: Number  // in milliseconds
-    },
-    categories: [{
-      type: String
-    }],
-    hardestQuestion: {
-      questionId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Question'
-      },
-      correctPercentage: {
-        type: Number
+    gameSessionId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'GameSessions',
+        key: 'id'
       }
     },
-    easiestQuestion: {
-      questionId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Question'
-      },
-      correctPercentage: {
-        type: Number
+    hostId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'Players',
+        key: 'id'
       }
+    },
+    playerCount: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+    players: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: []
+    },
+    rounds: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: []
+    },
+    code: {
+      type: DataTypes.STRING
+    },
+    startedAt: {
+      type: DataTypes.DATE,
+      allowNull: false
+    },
+    endedAt: {
+      type: DataTypes.DATE,
+      allowNull: false
+    },
+    duration: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+    gameSettings: {
+      type: DataTypes.JSONB,
+      defaultValue: {}
+    },
+    winner: {
+      type: DataTypes.JSONB,
+      defaultValue: {}
+    },
+    categories: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      defaultValue: []
+    },
+    questionStats: {
+      type: DataTypes.JSONB,
+      defaultValue: {}
     }
-  }],
-  code: {
-    type: String
-  },
-  startedAt: {
-    type: Date,
-    required: true
-  },
-  endedAt: {
-    type: Date,
-    required: true
-  },
-  duration: {
-    type: Number,  // in seconds
-    required: true
-  },
-  gameSettings: {
-    maxPlayers: Number,
-    publicGame: Boolean,
-    allowJoinAfterStart: Boolean,
-    questionPoolSize: Number
-  },
-  winner: {
-    playerId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Player'
-    },
-    name: String,
-    score: Number
-  },
-  categories: [{
-    type: String
-  }],
-  questionStats: {
-    total: {
-      type: Number,
-      required: true
-    },
-    correctPercentage: {
-      type: Number
-    },
-    averageResponseTime: {
-      type: Number  // in milliseconds
-    }
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-// Calculate winner based on final scores
-GameHistorySchema.methods.calculateWinner = function() {
-  if (!this.players || this.players.length === 0) return null;
-  
-  // Find the player with the highest score
-  const winner = this.players.reduce((highest, player) => {
-    return (player.finalScore > highest.finalScore) ? player : highest;
-  }, this.players[0]);
-  
-  this.winner = {
-    playerId: winner.playerId,
-    name: winner.name,
-    score: winner.finalScore
-  };
-  
-  return this.winner;
-};
-
-// Calculate aggregate stats
-GameHistorySchema.methods.calculateStats = function() {
-  // Calculate question stats
-  let totalCorrect = 0;
-  let totalResponseTime = 0;
-  let totalAnswers = 0;
-  
-  this.players.forEach(player => {
-    player.roundStats.forEach(roundStat => {
-      totalCorrect += roundStat.correctAnswers;
-      totalAnswers += roundStat.correctAnswers + roundStat.incorrectAnswers;
-      totalResponseTime += roundStat.averageResponseTime * 
-        (roundStat.correctAnswers + roundStat.incorrectAnswers);
-    });
+  }, {
+    timestamps: true,
+    indexes: [
+      {
+        fields: ['gameSessionId']
+      },
+      {
+        fields: ['hostId']
+      },
+      {
+        fields: ['startedAt']
+      }
+    ]
   });
-  
-  this.questionStats = {
-    total: this.rounds.reduce((sum, round) => sum + round.questionCount, 0),
-    correctPercentage: totalAnswers > 0 ? (totalCorrect / totalAnswers) * 100 : 0,
-    averageResponseTime: totalAnswers > 0 ? totalResponseTime / totalAnswers : 0
+
+  // Instance methods
+  GameHistory.prototype.calculateWinner = function() {
+    if (!this.players || this.players.length === 0) return null;
+
+    // Find the player with the highest score
+    const winner = this.players.reduce((highest, player) => {
+      return (player.finalScore > highest.finalScore) ? player : highest;
+    }, this.players[0]);
+
+    this.winner = {
+      playerId: winner.playerId,
+      name: winner.name,
+      score: winner.finalScore
+    };
+
+    return this.winner;
   };
-  
-  return this.questionStats;
-};
 
-// Static methods for retrieving game history
-GameHistorySchema.statics.getRecentGames = function(limit = 10) {
-  return this.find()
-    .sort({ startedAt: -1 })
-    .limit(limit)
-    .populate('hostId', 'name')
-    .select('code startedAt endedAt duration playerCount winner');
-};
+  GameHistory.prototype.calculateStats = function() {
+    // Calculate question stats
+    let totalCorrect = 0;
+    let totalResponseTime = 0;
+    let totalAnswers = 0;
 
-GameHistorySchema.statics.getPlayerGameHistory = function(playerId, limit = 10) {
-  return this.find({ 'players.playerId': playerId })
-    .sort({ startedAt: -1 })
-    .limit(limit)
-    .select('code startedAt endedAt duration playerCount winner');
-};
+    this.players.forEach(player => {
+      player.roundStats.forEach(roundStat => {
+        totalCorrect += roundStat.correctAnswers;
+        totalAnswers += roundStat.correctAnswers + roundStat.incorrectAnswers;
+        totalResponseTime += roundStat.averageResponseTime *
+          (roundStat.correctAnswers + roundStat.incorrectAnswers);
+      });
+    });
 
-GameHistorySchema.statics.getGameStats = async function() {
-  const totalGames = await this.countDocuments();
-  
-  const playerCounts = await this.aggregate([
-    { $group: { _id: null, totalPlayers: { $sum: '$playerCount' } } }
-  ]);
-  
-  const averageDuration = await this.aggregate([
-    { $group: { _id: null, avgDuration: { $avg: '$duration' } } }
-  ]);
-  
-  const mostPopularCategories = await this.aggregate([
-    { $unwind: '$categories' },
-    { $group: { _id: '$categories', count: { $sum: 1 } } },
-    { $sort: { count: -1 } },
-    { $limit: 5 }
-  ]);
-  
-  return {
-    totalGames,
-    totalPlayers: playerCounts.length > 0 ? playerCounts[0].totalPlayers : 0,
-    averageDuration: averageDuration.length > 0 ? averageDuration[0].avgDuration : 0,
-    mostPopularCategories: mostPopularCategories.map(cat => ({ name: cat._id, count: cat.count }))
+    this.questionStats = {
+      total: this.rounds.reduce((sum, round) => sum + round.questionCount, 0),
+      correctPercentage: totalAnswers > 0 ? (totalCorrect / totalAnswers) * 100 : 0,
+      averageResponseTime: totalAnswers > 0 ? totalResponseTime / totalAnswers : 0
+    };
+
+    return this.questionStats;
   };
-};
 
-module.exports = mongoose.model('GameHistory', GameHistorySchema);
+  // Static methods
+  GameHistory.getRecentGames = function(limit = 10) {
+    return GameHistory.findAll({
+      order: [['startedAt', 'DESC']],
+      limit,
+      include: [{
+        model: sequelize.models.Player,
+        as: 'host',
+        attributes: ['name']
+      }],
+      attributes: ['id', 'code', 'startedAt', 'endedAt', 'duration', 'playerCount', 'winner']
+    });
+  };
+
+  GameHistory.getPlayerGameHistory = function(playerId, limit = 10) {
+    return sequelize.query(`
+      SELECT gh.id, gh.code, gh."startedAt", gh."endedAt", gh.duration, gh."playerCount", gh.winner
+      FROM "GameHistories" gh, jsonb_array_elements(gh.players) as player
+      WHERE player->>'playerId' = :playerId
+      ORDER BY gh."startedAt" DESC
+      LIMIT :limit
+    `, {
+      replacements: { playerId, limit },
+      type: sequelize.QueryTypes.SELECT
+    });
+  };
+
+  GameHistory.getGameStats = async function() {
+    const totalGames = await GameHistory.count();
+
+    const playerCounts = await sequelize.query(`
+      SELECT SUM("playerCount") as "totalPlayers" FROM "GameHistories"
+    `, { type: sequelize.QueryTypes.SELECT });
+
+    const averageDuration = await sequelize.query(`
+      SELECT AVG(duration) as "avgDuration" FROM "GameHistories"
+    `, { type: sequelize.QueryTypes.SELECT });
+
+    const mostPopularCategories = await sequelize.query(`
+      SELECT category, COUNT(*) as count
+      FROM "GameHistories", unnest(categories) as category
+      GROUP BY category
+      ORDER BY count DESC
+      LIMIT 5
+    `, { type: sequelize.QueryTypes.SELECT });
+
+    return {
+      totalGames,
+      totalPlayers: playerCounts.length > 0 ? parseInt(playerCounts[0].totalPlayers) : 0,
+      averageDuration: averageDuration.length > 0 ? parseFloat(averageDuration[0].avgDuration) : 0,
+      mostPopularCategories: mostPopularCategories.map(cat => ({ name: cat.category, count: parseInt(cat.count) }))
+    };
+  };
+
+  // Set up associations
+  GameHistory.associate = function(models) {
+    GameHistory.belongsTo(models.GameSession, {
+      foreignKey: 'gameSessionId'
+    });
+
+    GameHistory.belongsTo(models.Player, {
+      foreignKey: 'hostId',
+      as: 'host'
+    });
+  };
+
+  return GameHistory;
+};

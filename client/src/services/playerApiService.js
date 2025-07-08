@@ -4,8 +4,7 @@
  */
 import axios from 'axios';
 import playerService from './playerService';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL, SUPPRESS_404_ERRORS } from '../config/config';
 
 /**
  * Create a new player
@@ -15,20 +14,38 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const registerPlayer = async (playerData) => {
   try {
     // Add device ID to player data
+    const deviceId = playerService.getDeviceId();
+    console.log('Using device ID for registration:', deviceId);
+
     const playerWithDevice = {
       ...playerData,
-      deviceId: playerService.getDeviceId()
+      deviceId
     };
 
-    const response = await axios.post(`${API_URL}/players`, playerWithDevice);
+    console.log('Registering player with data:', playerWithDevice);
+    console.log('API URL for registration:', API_URL);
+
+    // Set headers to ensure proper CORS handling
+    const headers = {
+      'Content-Type': 'application/json',
+      'Origin': window.location.origin
+    };
+
+    console.log('Request headers:', headers);
+    console.log('Request origin:', window.location.origin);
+
+    const response = await axios.post(`${API_URL}/players`, playerWithDevice, { headers });
+    console.log('Registration response:', response.data);
 
     // Save player ID and data to localStorage
-    playerService.savePlayerId(response.data._id);
+    playerService.savePlayerId(response.data.id);
     playerService.savePlayerData(response.data);
 
     return response.data;
   } catch (error) {
     console.error('Error registering player:', error);
+    console.error('Error response:', error.response?.data);
+    console.error('Error status:', error.response?.status);
     throw error;
   }
 };
@@ -69,27 +86,26 @@ const getPlayerById = async (playerId) => {
 const getPlayerByDevice = async () => {
   try {
     const deviceId = playerService.getDeviceId();
-
-    // Skip the API call if we're in development mode and want to suppress 404 errors
-    // This is useful for testing without a backend
-    if (import.meta.env.DEV && import.meta.env.VITE_SUPPRESS_404_ERRORS === 'true') {
-      console.log('Development mode: Skipping device ID lookup to avoid 404 errors');
-      return null;
-    }
+    console.log('🔍 Looking up player by device ID:', deviceId);
 
     // Use a silent axios instance that doesn't log 404 errors to console
     const response = await axios.get(`${API_URL}/players/device/${deviceId}`, {
       validateStatus: status => (status >= 200 && status < 300) || status === 404
     });
 
+    console.log('🔍 Device lookup response status:', response.status);
+
     // Handle 404 as a valid case (new device)
     if (response.status === 404) {
+      console.log('🔍 No player found for device ID (404)');
       return null;
     }
 
+    console.log('✅ Player found by device ID:', response.data?.name);
+
     // Save player ID and data to localStorage if found
     if (response.data) {
-      playerService.savePlayerId(response.data._id);
+      playerService.savePlayerId(response.data.id);
       playerService.savePlayerData(response.data);
     }
 
@@ -97,7 +113,9 @@ const getPlayerByDevice = async () => {
   } catch (error) {
     // Only log real errors, not expected 404s
     if (!error.response || error.response.status !== 404) {
-      console.error('Error getting player by device:', error);
+      console.error('❌ Error getting player by device:', error);
+    } else {
+      console.log('🔍 No player found for device ID (404 error)');
     }
     return null; // Return null for any error to simplify error handling
   }
@@ -173,6 +191,19 @@ const getTopPlayers = async (limit = 10) => {
 };
 
 /**
+ * Find player by device ID (alias for getPlayerByDevice)
+ * @returns {Promise<Object|null>} The player data or null if not found
+ */
+const findPlayerByDeviceId = async () => {
+  try {
+    return await getPlayerByDevice();
+  } catch (error) {
+    console.error('Error finding player by device ID:', error);
+    return null;
+  }
+};
+
+/**
  * Check if player exists for current device and load if found
  * @returns {Promise<boolean>} True if player exists, false otherwise
  */
@@ -197,6 +228,7 @@ export default {
   getAllPlayers,
   getPlayerById,
   getPlayerByDevice,
+  findPlayerByDeviceId,
   updatePlayer,
   deletePlayer,
   getPlayerStats,

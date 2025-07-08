@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QR URL Test</title>
+</head>
+<body>
+    <h1>QR Code URL Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Simulate the environment variables
+        const env = {
+            VITE_APP_URL: 'http://192.168.0.87:5173',
+            VITE_SERVER_URL: 'http://192.168.0.87:5000',
+            VITE_API_URL: 'http://192.168.0.87:5000/api'
+        };
+        
+        // Simulate the getBaseUrl function
+        function getBaseUrl() {
+            console.log('🔍 getBaseUrl() called');
+            console.log('Environment check:');
+            console.log('  VITE_APP_URL:', env.VITE_APP_URL);
+            console.log('  VITE_SERVER_URL:', env.VITE_SERVER_URL);
+            console.log('  window.location.origin:', window.location.origin);
+            
+            if (env.VITE_APP_URL) {
+                console.log('✅ Using VITE_APP_URL:', env.VITE_APP_URL);
+                return env.VITE_APP_URL;
+            }
+            
+            if (env.VITE_SERVER_URL) {
+                const cleanUrl = env.VITE_SERVER_URL.replace(/\/api\/?$/, '');
+                console.log('⚠️ Using VITE_SERVER_URL (cleaned):', cleanUrl);
+                return cleanUrl;
+            }
+            
+            console.log('❌ Fallback to window.location.origin:', window.location.origin);
+            return window.location.origin;
+        }
+        
+        // Test QR URL generation
+        const gameCode = 'TEST123';
+        const baseUrl = getBaseUrl();
+        const qrUrl = `${baseUrl}/join/${gameCode}`;
+        
+        console.log('🎯 Final QR Code URL:', qrUrl);
+        
+        document.getElementById('results').innerHTML = `
+            <h2>Results:</h2>
+            <p><strong>Base URL:</strong> ${baseUrl}</p>
+            <p><strong>Game Code:</strong> ${gameCode}</p>
+            <p><strong>QR URL:</strong> ${qrUrl}</p>
+            <p><strong>Expected:</strong> http://192.168.0.87:5173/join/${gameCode}</p>
+            <p><strong>Status:</strong> ${qrUrl.includes('192.168.0.87') ? '✅ CORRECT' : '❌ WRONG'}</p>
+        `;
+    </script>
+</body>
+</html>

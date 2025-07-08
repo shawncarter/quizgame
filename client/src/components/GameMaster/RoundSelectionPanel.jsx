@@ -71,19 +71,23 @@ const RoundSelectionPanel = ({ gameSession, currentRound, gameStatus }) => {
   // Handle form submission to add a new round
   const handleAddRound = async (e) => {
     e.preventDefault();
-    
+
+    console.log('🎯 handleAddRound called');
+    console.log('🎯 newRound:', newRound);
+
     if (!newRound.title.trim()) {
       setError('Round title is required');
       return;
     }
-    
+
     try {
       setIsSaving(true);
       setError(null);
-      
+
       // Get current rounds
       const currentRounds = gameSession.rounds || [];
-      
+      console.log('🎯 Current rounds:', currentRounds);
+
       // Add new round
       const updatedRounds = [...currentRounds, {
         type: newRound.type,
@@ -93,11 +97,16 @@ const RoundSelectionPanel = ({ gameSession, currentRound, gameStatus }) => {
         questions: [],
         completed: false
       }];
-      
+
+      console.log('🎯 Updated rounds:', updatedRounds);
+      console.log('🎯 About to call updateGameSettings...');
+
       // Update game settings
-      await updateGameSettings({
+      const result = await updateGameSettings({
         rounds: updatedRounds
       });
+
+      console.log('🎯 updateGameSettings result:', result);
       
       // Reset form
       setNewRound({

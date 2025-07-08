@@ -23,7 +23,7 @@ async function handleStartGame(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       return socket.emit('error', { message: 'Game session not found' });
     }
@@ -63,27 +63,29 @@ async function handleStartGame(socket, data) {
     // Log game start
     console.log(`Game ${gameSession.code} started by host ${playerId} with ${gameSession.players.length} players`);
     
-    // Notify all players in the game room
-    socket.to(gameSession.code).emit('game:started', {
-      gameSessionId: gameSession._id,
+    // Create the game state update object
+    const gameStateUpdate = {
+      gameSessionId: gameSession.id,
+      _id: gameSession.id, // Include _id for MongoDB compatibility
+      id: gameSession.id,  // Include id for PostgreSQL compatibility
       status: gameSession.status,
       currentRound: gameSession.currentRound,
       roundType: gameSession.currentRoundType,
       startedAt: gameSession.startedAt,
       config: data.config || {},
       timestamp: Date.now()
-    });
+    };
     
-    // Confirm to the host
-    socket.emit('game:started', {
-      gameSessionId: gameSession._id,
-      status: gameSession.status,
-      currentRound: gameSession.currentRound,
-      roundType: gameSession.currentRoundType,
-      startedAt: gameSession.startedAt,
-      config: data.config || {},
-      timestamp: Date.now()
-    });
+    // Log the full update object for debugging
+    console.log('Game state update object from host handler:', JSON.stringify(gameStateUpdate));
+
+    // Notify all players in the game room with both events to ensure compatibility
+    socket.to(gameSession.code).emit('game:started', gameStateUpdate);
+    socket.to(gameSession.code).emit('game:state', gameStateUpdate);
+    
+    // Confirm to the host with both events
+    socket.emit('game:started', gameStateUpdate);
+    socket.emit('game:state', gameStateUpdate);
   } catch (error) {
     console.error('Error handling host:startGame:', error);
     socket.emit('error', { 
@@ -109,7 +111,7 @@ async function handleNextQuestion(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       return socket.emit('error', { message: 'Game session not found' });
     }
@@ -130,7 +132,7 @@ async function handleNextQuestion(socket, data) {
     // Handle specified question if provided in data
     let question;
     if (data.questionId) {
-      question = await Question.findById(data.questionId);
+      question = await Question.findByPk(data.questionId);
       if (!question) {
         return socket.emit('error', { message: 'Question not found' });
       }
@@ -194,7 +196,7 @@ async function handleNextQuestion(socket, data) {
         roundNumber: gameSession.currentRound,
         roundType: gameSession.currentRoundType || 'standard',
         questions: [{
-          questionId: question._id,
+          questionId: question.id,
           startTime: questionStartTime,
           timeLimit: timeLimit,
           active: true
@@ -209,7 +211,7 @@ async function handleNextQuestion(socket, data) {
       
       // Then add the new question
       gameSession.rounds[currentRoundIndex].questions.push({
-        questionId: question._id,
+        questionId: question.id,
         startTime: questionStartTime,
         timeLimit: timeLimit,
         active: true
@@ -221,7 +223,7 @@ async function handleNextQuestion(socket, data) {
     
     // Prepare question data to send to clients
     const questionData = {
-      id: question._id,
+      id: question.id,
       text: question.text,
       options: question.options,
       category: question.category,
@@ -235,7 +237,7 @@ async function handleNextQuestion(socket, data) {
     // Note: This would typically use a service import, but we'll add it later
     const activeQuestions = global.activeQuestions || new Map();
     activeQuestions.set(gameSessionCode, {
-      id: question._id,
+      id: question.id,
       startTime: questionStartTime,
       timeLimit: timeLimit,
       endTime: new Date(questionStartTime.getTime() + (timeLimit * 1000))
@@ -251,8 +253,8 @@ async function handleNextQuestion(socket, data) {
     const timerId = setTimeout(() => {
       // Handle question timeout
       socket.emit('question:timeout', {
-        questionId: question._id,
-        gameSessionId: gameSession._id
+        questionId: question.id,
+        gameSessionId: gameSession.id
       });
       
       // Remove from active questions
@@ -278,7 +280,7 @@ async function handleNextQuestion(socket, data) {
       explanation: question.explanation
     });
     
-    console.log(`Host ${playerId} started question ${question._id} in game ${gameSessionCode}`);
+    console.log(`Host ${playerId} started question ${question.id} in game ${gameSessionCode}`);
   } catch (error) {
     console.error('Error handling host:nextQuestion:', error);
     socket.emit('error', { 
@@ -343,7 +345,7 @@ async function handleEndQuestion(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       return socket.emit('error', { message: 'Game session not found' });
     }
@@ -377,7 +379,7 @@ async function handleEndQuestion(socket, data) {
     }
     
     // Find the question in the database to get correct answer
-    const question = await Question.findById(questionId);
+    const question = await Question.findByPk(questionId);
     if (!question) {
       return socket.emit('error', { message: 'Question not found in database' });
     }
@@ -565,7 +567,7 @@ async function handlePauseGame(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       return socket.emit('error', { message: 'Game session not found' });
     }
@@ -655,7 +657,7 @@ async function handleResumeGame(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       return socket.emit('error', { message: 'Game session not found' });
     }
@@ -703,7 +705,7 @@ async function handleResumeGame(socket, data) {
           // Handle question timeout
           socket.emit('question:timeout', {
             questionId: currentQuestion.id,
-            gameSessionId: gameSession._id
+            gameSessionId: gameSession.id
           });
           
           // Remove from active questions
@@ -778,7 +780,7 @@ async function handleEndGame(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       return socket.emit('error', { message: 'Game session not found' });
     }
@@ -827,7 +829,7 @@ async function handleEndGame(socket, data) {
     try {
       const { GameHistory } = require('../models');
       await GameHistory.create({
-        gameId: gameSession._id,
+        gameId: gameSession.id,
         code: gameSession.code,
         startedAt: gameSession.startedAt,
         endedAt,
@@ -874,7 +876,7 @@ async function handleEndGame(socket, data) {
     
     // Notify all players in the game room
     socket.to(gameSessionCode).emit('game:ended', {
-      gameSessionId: gameSession._id,
+      gameSessionId: gameSession.id,
       endedAt,
       summary: gameSummary,
       timestamp: Date.now()
@@ -882,7 +884,7 @@ async function handleEndGame(socket, data) {
     
     // Confirm to the host
     socket.emit('game:ended', {
-      gameSessionId: gameSession._id,
+      gameSessionId: gameSession.id,
       endedAt,
       summary: gameSummary,
       timestamp: Date.now()

@@ -56,8 +56,8 @@ const PlayerLobby = () => {
         <div className="players-list">
           {players.map(player => (
             <div 
-              key={player._id} 
-              className={`player-card ${currentPlayer && player._id === currentPlayer._id ? 'current-player' : ''}`}
+              key={player?.id} 
+              className={`player-card ${currentPlayer && player?.id === currentPlayer.id ? 'current-player' : ''}`}
             >
               <div className="player-avatar">
                 <div className="avatar-image">{player.avatar || 'Default'}</div>
@@ -72,12 +72,12 @@ const PlayerLobby = () => {
               </div>
               <div className="player-actions">
                 <Link 
-                  to={`/profile/${player._id}`} 
+                  to={`/profile/${player?.id}`} 
                   className="button small-button"
                 >
                   View Profile
                 </Link>
-                {currentPlayer && player._id !== currentPlayer._id && (
+                {currentPlayer && player?.id !== currentPlayer.id && (
                   <button className="button small-button primary-button">
                     Invite to Game
                   </button>

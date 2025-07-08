@@ -29,7 +29,7 @@ async function handleRoundStart(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -85,7 +85,7 @@ async function handleRoundStart(socket, data) {
     
     // Set up round timer if applicable
     if (roundSettings.timeLimit) {
-      setupRoundTimer(gameSessionCode, roundSettings.timeLimit, socket, gameSession._id, roundNumber);
+      setupRoundTimer(gameSessionCode, roundSettings.timeLimit, socket, gameSession.id, roundNumber);
     }
     
     // Broadcast round start to all players
@@ -214,7 +214,7 @@ function setupRoundTimer(gameSessionCode, timeLimit, socket, gameSessionId, roun
       });
       
       // Update game session
-      const gameSession = await GameSession.findById(gameSessionId);
+      const gameSession = await GameSession.findByPk(gameSessionId);
       if (gameSession) {
         const roundIndex = gameSession.rounds.findIndex(r => r.roundNumber === roundNumber);
         if (roundIndex !== -1) {
@@ -257,7 +257,7 @@ async function handleRoundEnd(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -428,7 +428,7 @@ async function handlePointBuilderRound(socket, data) {
     const gameSessionCode = socket.gameSessionCode;
     
     // Store player starting scores for end-of-round calculation
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (gameSession) {
       // Update player starting scores for this round
       for (const player of gameSession.players) {
@@ -470,7 +470,7 @@ async function handleFastestFingerRound(socket, data) {
     const gameSessionCode = socket.gameSessionCode;
     
     // Store player starting scores for end-of-round calculation
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (gameSession) {
       // Update player starting scores for this round
       for (const player of gameSession.players) {
@@ -515,7 +515,7 @@ async function handleGraduatedPointsRound(socket, data) {
     const gameSessionId = socket.gameSessionId;
     
     // Store player starting scores for end-of-round calculation
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (gameSession) {
       // Update player starting scores for this round
       for (const player of gameSession.players) {

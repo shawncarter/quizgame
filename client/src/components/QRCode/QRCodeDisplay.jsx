@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import PropTypes from 'prop-types';
+import axios from 'axios';
+import { getBaseUrl, API_URL } from '../../config/config';
 import './QRCodeDisplay.css';
 
 /**
  * QR Code Display Component
  * Displays a QR code for a game session
  */
-const QRCodeDisplay = ({ 
-  gameSessionId, 
+const QRCodeDisplay = ({
+  gameSessionId,
   gameCode,
   size = 256,
   includeText = true,
@@ -22,28 +24,48 @@ const QRCodeDisplay = ({
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    console.log('QRCodeDisplay props:', { gameCode, gameSessionId, size });
+    console.log('API_URL from config:', API_URL);
+
     if (gameCode) {
       // If game code is provided directly, construct the join URL
-      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      setJoinUrl(`${baseUrl}/join/${gameCode}`);
+      const baseUrl = getBaseUrl();
+      console.log('🔍 QR Code Debug Info:');
+      console.log('Base URL for QR code:', baseUrl);
+      console.log('Environment variables:', {
+        VITE_APP_URL: import.meta.env.VITE_APP_URL,
+        VITE_SERVER_URL: import.meta.env.VITE_SERVER_URL,
+        VITE_API_URL: import.meta.env.VITE_API_URL,
+        VITE_SOCKET_URL: import.meta.env.VITE_SOCKET_URL
+      });
+      console.log('window.location.origin:', window.location.origin);
+      const finalUrl = `${baseUrl}/join/${gameCode}`;
+      setJoinUrl(finalUrl);
+      console.log('🎯 Final QR Code URL:', finalUrl);
+      console.log('🎯 This URL should contain 192.168.0.87, not localhost!');
     } else if (gameSessionId) {
       // If game session ID is provided, fetch the game code
       setIsLoading(true);
-      fetch(`/api/games/${gameSessionId}`)
+      console.log('Fetching game session from:', `${API_URL}/games/${gameSessionId}`);
+      axios.get(`${API_URL}/games/${gameSessionId}`)
         .then(response => {
-          if (!response.ok) {
-            throw new Error('Failed to fetch game session');
-          }
-          return response.json();
+          console.log('API response status:', response.status);
+          console.log('API response data:', response.data);
+          return response.data;
         })
         .then(data => {
-          const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-          setJoinUrl(`${baseUrl}/join/${data.code}`);
+          console.log('API response data:', data);
+          const gameData = data.data || data;
+          console.log('Game data extracted:', gameData);
+          const baseUrl = getBaseUrl();
+          setJoinUrl(`${baseUrl}/join/${gameData.code}`);
+          console.log('QR Code URL:', `${baseUrl}/join/${gameData.code}`);
           setIsLoading(false);
         })
         .catch(err => {
           console.error('Error fetching game session:', err);
-          setError(err.message);
+          console.error('Error details:', err.response ? err.response.data : 'No response data');
+          setError(err.message || 'Failed to fetch game data');
           setIsLoading(false);
           if (onError) {
             onError(err);
@@ -64,7 +86,7 @@ const QRCodeDisplay = ({
       const pngUrl = canvas
         .toDataURL('image/png')
         .replace('image/png', 'image/octet-stream');
-      
+
       const downloadLink = document.createElement('a');
       downloadLink.href = pngUrl;
       downloadLink.download = `quizgame-${gameCode || 'session'}.png`;
@@ -104,14 +126,14 @@ const QRCodeDisplay = ({
             width: size * 0.1,
           }}
         />
-        <canvas 
-          id="qr-code-canvas" 
+        <canvas
+          id="qr-code-canvas"
           style={{ display: 'none' }}
           width={size}
           height={size}
         />
       </div>
-      
+
       {includeText && (
         <div className="qr-code-text">
           <p className="qr-code-instructions">Scan to join the game</p>
@@ -119,9 +141,9 @@ const QRCodeDisplay = ({
           <p className="qr-code-url">{joinUrl}</p>
         </div>
       )}
-      
+
       <div className="qr-code-actions">
-        <button 
+        <button
           className="qr-code-download-btn"
           onClick={handleDownload}
           aria-label="Download QR Code"

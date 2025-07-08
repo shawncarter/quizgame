@@ -4,8 +4,7 @@
  */
 import axios from 'axios';
 import playerService from './playerService';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../config/config';
 
 /**
  * Get authentication headers with player token
@@ -13,18 +12,59 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
  */
 const getAuthHeaders = () => {
   const token = playerService.getPlayerToken();
-  const playerId = playerService.getPlayerId();
-  
-  if (!token && !playerId) {
-    console.warn('No authentication token available');
+  const deviceId = playerService.getDeviceId(); // Use device ID instead of player ID
+
+  // Prefer token if available, otherwise use device ID
+  const authValue = token || deviceId;
+
+  if (!authValue) {
+    console.warn('No authentication token or device ID available');
   }
-  
+
   return {
     headers: {
-      'x-auth-token': token || playerId || '',
+      'x-auth-token': authValue,
       'Content-Type': 'application/json'
     }
   };
+};
+
+/**
+ * Handle authentication errors and attempt recovery
+ * @param {Error} error - The error from the API call
+ * @param {Function} retryFunction - Function to retry the original call
+ * @returns {Promise} - Retry result or throws error
+ */
+const handleAuthError = async (error, retryFunction) => {
+  if (error.response && error.response.status === 401) {
+    console.warn('Authentication failed, attempting recovery...');
+
+    // Try to refresh player data from localStorage
+    const playerData = localStorage.getItem('quizgame_player_data');
+    if (playerData) {
+      try {
+        const player = JSON.parse(playerData);
+        if (player.deviceId) {
+          // Update the device ID in playerService
+          localStorage.setItem('quizgame_device_id', player.deviceId);
+          console.log('Recovered authentication with device ID:', player.deviceId);
+
+          // Retry the original call
+          return await retryFunction();
+        }
+      } catch (parseError) {
+        console.error('Failed to parse player data from localStorage:', parseError);
+      }
+    }
+
+    // If recovery fails, just log the error and continue
+    console.warn('Authentication recovery failed, but continuing...');
+    // Don't throw an error, just return the original error
+    throw error;
+  }
+
+  // Re-throw non-auth errors
+  throw error;
 };
 
 /**
@@ -33,12 +73,16 @@ const getAuthHeaders = () => {
  * @returns {Promise<Object>} Created game session
  */
 const createGameSession = async (gameSettings) => {
-  try {
+  const makeRequest = async () => {
     const response = await axios.post(`${API_URL}/games`, gameSettings, getAuthHeaders());
     return response.data.data;
+  };
+
+  try {
+    return await makeRequest();
   } catch (error) {
     console.error('Error creating game session:', error);
-    throw error;
+    return await handleAuthError(error, makeRequest);
   }
 };
 
@@ -133,6 +177,26 @@ const getGameSessionPlayers = async (gameId) => {
   }
 };
 
+/**
+ * Add test players to a game session
+ * @param {string} gameId - Game session ID
+ * @param {number} count - Number of test players to add (default: 2)
+ * @returns {Promise<Object>} Updated game session with test players
+ */
+const addTestPlayers = async (gameId, count = 2) => {
+  const makeRequest = async () => {
+    const response = await axios.post(`${API_URL}/games/${gameId}/test-players`, { count }, getAuthHeaders());
+    return response.data.data;
+  };
+
+  try {
+    return await makeRequest();
+  } catch (error) {
+    console.error('Error adding test players:', error);
+    return await handleAuthError(error, makeRequest);
+  }
+};
+
 export default {
   createGameSession,
   getGameSessionById,
@@ -140,5 +204,6 @@ export default {
   startGameSession,
   endGameSession,
   updateGameSession,
-  getGameSessionPlayers
+  getGameSessionPlayers,
+  addTestPlayers
 };

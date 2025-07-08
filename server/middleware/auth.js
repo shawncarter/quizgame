@@ -25,30 +25,32 @@ exports.authenticate = async (req, res, next) => {
   try {
     // First try to verify as JWT token
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const decoded = jwt.verify(token, jwtSecret);
       console.log('JWT token verified, user ID:', decoded.id);
       req.user = decoded;
       return next();
     } catch (jwtError) {
       console.log('JWT verification failed, trying as player ID:', jwtError.message);
 
-      // If JWT verification fails, try to find player by ID
-      const Player = require('../models/Player');
-      const player = await Player.findById(token);
+      // If JWT verification fails, try to find player by deviceId
+      const { Player } = require('../models');
+
+      // For MongoDB compatibility during transition, try to find by deviceId
+      const player = await Player.findOne({ where: { deviceId: token } });
 
       if (!player) {
-        console.log('Player not found with ID:', token);
+        console.log('Player not found with deviceId:', token);
         return res.status(401).json({
           success: false,
           error: 'Invalid player ID or token'
         });
       }
 
-      console.log('Player found:', player._id);
+      console.log('Player found:', player.id);
 
       // Add user data to request
       req.user = {
-        id: player._id,
+        id: player.id,
         role: 'game_master', // Temporarily set all players as game masters (using underscore to match config)
         name: player.name
       };
@@ -133,30 +135,40 @@ exports.validateGameSessionAccess = async (req, res, next) => {
 
     console.log('User authenticated:', req.user.id);
 
-    const GameSession = require('../models/GameSession');
-    const gameSessionId = req.params.sessionId || req.params.id;
+    const { GameSession } = require('../models');
+    const gameSessionParam = req.params.sessionId || req.params.id;
 
-    if (!gameSessionId) {
-      console.log('Game session ID not provided');
+    if (!gameSessionParam) {
+      console.log('Game session parameter not provided');
       return res.status(400).json({
         success: false,
-        error: 'Game session ID not provided'
+        error: 'Game session parameter not provided'
       });
     }
 
-    console.log('Looking for game session:', gameSessionId);
+    console.log('Looking for game session with parameter:', gameSessionParam);
 
-    const gameSession = await GameSession.findById(gameSessionId);
+    // Check if the parameter is numeric (likely an ID) or a string (likely a code)
+    let gameSession;
+    if (/^\d+$/.test(gameSessionParam)) {
+      // Parameter is numeric, search by ID
+      console.log('Searching by ID:', gameSessionParam);
+      gameSession = await GameSession.findOne({ where: { id: parseInt(gameSessionParam) } });
+    } else {
+      // Parameter is not numeric, search by code
+      console.log('Searching by code:', gameSessionParam);
+      gameSession = await GameSession.findOne({ where: { code: gameSessionParam } });
+    }
 
     if (!gameSession) {
-      console.log('Game session not found:', gameSessionId);
+      console.log('Game session not found:', gameSessionParam);
       return res.status(404).json({
         success: false,
         error: 'Game session not found'
       });
     }
 
-    console.log('Game session found:', gameSession._id);
+    console.log('Game session found:', gameSession.id);
     console.log('Game host:', gameSession.hostId);
     console.log('User ID:', req.user.id);
 
@@ -168,7 +180,7 @@ exports.validateGameSessionAccess = async (req, res, next) => {
     // Game masters can access any game session
     if (req.user.role === 'game_master') {
       // If the user is a game master, verify they are the host of this game
-      if (gameSession.hostId.toString() !== req.user.id) {
+      if (gameSession.hostId !== req.user.id) {
         console.log('Access denied: User is not the host');
         return res.status(403).json({
           success: false,
@@ -185,7 +197,7 @@ exports.validateGameSessionAccess = async (req, res, next) => {
     // Players can only access game sessions they are part of
     if (req.user.role === 'player') {
       const isPlayerInSession = gameSession.players.some(
-        player => player.playerId.toString() === req.user.id
+        player => player.playerId === req.user.id
       );
 
       if (!isPlayerInSession) {

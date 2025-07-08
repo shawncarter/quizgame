@@ -1,0 +1,85 @@
+.tabbed-panel {
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tabbed-panel-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0;
+  padding: 15px;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.tabbed-panel-header {
+  display: flex;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eaeaea;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tabbed-panel-header::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tabbed-panel-header::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.tabbed-panel-header::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.tab-button {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #7f8c8d;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  outline: none;
+}
+
+.tab-button:hover {
+  color: #3498db;
+  background-color: rgba(52, 152, 219, 0.05);
+}
+
+.tab-button.active {
+  color: #3498db;
+  border-bottom-color: #3498db;
+  background-color: rgba(52, 152, 219, 0.1);
+}
+
+.tabbed-panel-content {
+  padding: 15px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .tab-button {
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+  
+  .tabbed-panel-title {
+    font-size: 16px;
+    padding: 12px;
+  }
+  
+  .tabbed-panel-content {
+    padding: 12px;
+  }
+}

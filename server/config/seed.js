@@ -1,7 +1,6 @@
-const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const connectDB = require('./db');
-const { Category } = require('../models');
+const db = require('../models');
 const categoryData = require('./seedData/categories');
 
 // Load environment variables
@@ -11,49 +10,54 @@ dotenv.config();
 const seedDatabase = async () => {
   try {
     // Connect to database
-    await connectDB();
-    
+    const connection = await connectDB();
+
+    // Skip seeding if using mock database
+    if (connection.mock) {
+      console.log('Using mock database - skipping database seeding');
+      process.exit(0);
+      return;
+    }
+
     console.log('Seeding database...');
-    
+
     // Clear existing categories
-    await Category.deleteMany({});
+    await db.Category.destroy({ where: {}, truncate: true, cascade: true });
     console.log('Cleared existing categories');
-    
+
     // First pass - create all categories without parent relationships
     const createdCategories = {};
     const secondPassUpdates = [];
-    
+
     for (const category of categoryData) {
       const { parentCategory, ...categoryData } = category;
-      
-      const newCategory = await Category.create(categoryData);
-      createdCategories[category.name] = newCategory._id;
-      
+
+      const newCategory = await db.Category.create(categoryData);
+      createdCategories[category.name] = newCategory.id;
+
       if (parentCategory) {
         secondPassUpdates.push({
-          categoryId: newCategory._id,
+          categoryId: newCategory.id,
           parentName: parentCategory
         });
       }
     }
-    
+
     // Second pass - update parent relationships
     for (const update of secondPassUpdates) {
       if (createdCategories[update.parentName]) {
-        await Category.findByIdAndUpdate(update.categoryId, {
-          parentCategory: createdCategories[update.parentName]
-        });
+        await db.Category.update(
+          { parentCategoryId: createdCategories[update.parentName] },
+          { where: { id: update.categoryId } }
+        );
       } else {
         console.warn(`Parent category "${update.parentName}" not found`);
       }
     }
-    
+
     console.log(`Database seeded with ${Object.keys(createdCategories).length} categories`);
-    
-    // Disconnect from the database
-    await mongoose.disconnect();
-    console.log('Database connection closed');
-    
+    console.log('Database seeding completed');
+
     process.exit(0);
   } catch (error) {
     console.error(`Error seeding database: ${error.message}`);

@@ -1,17 +1,37 @@
-const mongoose = require('mongoose');
+const config = require('./config');
+const db = require('../models');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/quizgame', {
-      // Using Mongoose 7+ which no longer needs these options
-      // They're automatically configured with sensible defaults
-    });
+    // Check if we're in development mode and allow mock DB
+    if (config.IS_DEVELOPMENT && config.MOCK_DB) {
+      console.log('Using mock database (PostgreSQL connection skipped)');
+      return { mock: true };
+    }
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-    return conn;
+    // Test the connection
+    await db.sequelize.authenticate();
+    console.log('PostgreSQL Connected');
+
+    // Sync models with database
+    if (config.IS_DEVELOPMENT && config.DB_SYNC) {
+      // In development, we can sync the models with the database
+      // This will create tables if they don't exist, but won't drop existing ones
+      await db.sequelize.sync({ force: false, alter: false });
+      console.log('Database synchronized (tables created)');
+    }
+
+    return db.sequelize;
   } catch (error) {
-    console.error(`Error connecting to MongoDB: ${error.message}`);
-    process.exit(1);
+    console.error(`Error connecting to PostgreSQL: ${error.message}`);
+
+    // In development mode, we can continue without PostgreSQL
+    if (config.IS_DEVELOPMENT) {
+      console.warn('Running in development mode without PostgreSQL. Some features will not work.');
+      return { mock: true };
+    } else {
+      process.exit(1);
+    }
   }
 };
 

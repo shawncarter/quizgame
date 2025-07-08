@@ -26,19 +26,30 @@ export function SocketProvider({ children }) {
       setIsConnected(true);
       setSocketError(null);
       setNeedsRegistration(false); // Reset flag on successful connection
+      
+      // Clear any existing error message when successfully connected
+      console.log('Socket connected successfully');
     };
 
     const handleDisconnect = (namespace, reason) => {
       setIsConnected(false);
+      console.log(`Socket disconnected from namespace ${namespace}. Reason: ${reason}`);
+      
       if (reason !== 'io client disconnect') {
         setSocketError(`Connection lost: ${reason}`);
       }
     };
 
     const handleError = (namespace, error) => {
+      console.log(`Socket error in namespace ${namespace}:`, error?.message || 'Unknown error');
+      
       // If the error is about player ID being required, set a flag
       if (error?.message === 'Authentication error: Player ID required') {
         setSocketError('You need to register as a player first');
+        setNeedsRegistration(true);
+      } else if (error?.message && error?.message.includes('Authentication')) {
+        console.error('Authentication error:', error.message);
+        setSocketError('Authentication failed. Please try registering again.');
         setNeedsRegistration(true);
       } else {
         setSocketError(error?.message || 'Connection error');
@@ -84,9 +95,28 @@ export function SocketProvider({ children }) {
    * Connect to a socket namespace
    * @param {string} namespace - Namespace to connect to
    * @param {Object} auth - Authentication data
+   * @returns {Promise} Promise that resolves when connected
    */
   const connectToNamespace = useCallback((namespace, auth = {}) => {
-    socketService.connectToNamespace(namespace, auth);
+    console.log(`Connecting to namespace ${namespace} with auth:`, auth);
+
+    // Create a promise that resolves when connected
+    return new Promise((resolve, reject) => {
+      try {
+        // Connect to the namespace
+        socketService.connectToNamespace(namespace, auth);
+
+        // Set a timeout to resolve the promise after a short delay
+        // This gives the socket time to establish the connection
+        setTimeout(() => {
+          console.log(`Namespace ${namespace} connection attempt completed`);
+          resolve();
+        }, 500);
+      } catch (error) {
+        console.error(`Error connecting to namespace ${namespace}:`, error);
+        reject(error);
+      }
+    });
   }, []);
 
   /**

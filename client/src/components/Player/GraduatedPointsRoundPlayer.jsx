@@ -102,7 +102,7 @@ const GraduatedPointsRoundPlayer = ({
       
       // Check if player's answer was correct and if they were fastest
       const isCorrect = selectedAnswer === data.correctIndex;
-      const wasFastest = data.fastestPlayerId === playerData?._id;
+      const wasFastest = data.fastestPlayerId === playerData?.id;
       
       if (wasFastest) {
         setIsFastest(true);
@@ -116,8 +116,8 @@ const GraduatedPointsRoundPlayer = ({
       }
       
       // Update score if needed
-      if (data.playerResults && data.playerResults[playerData?._id]) {
-        const result = data.playerResults[playerData._id];
+      if (data.playerResults && data.playerResults[playerData?.id]) {
+        const result = data.playerResults[playerData.id];
         if (result.pointsEarned) {
           setEarnedPoints(result.pointsEarned);
           setRecentPoints(result.pointsEarned);

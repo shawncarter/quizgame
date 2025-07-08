@@ -1,211 +1,189 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
-
-const QuestionSchema = new Schema({
-  text: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  type: {
-    type: String,
-    enum: ['multipleChoice', 'trueFalse', 'shortAnswer'],
-    default: 'multipleChoice'
-  },
-  category: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  difficulty: {
-    type: String,
-    enum: ['easy', 'medium', 'hard'],
-    default: 'medium'
-  },
-  options: [{
+module.exports = (sequelize, DataTypes) => {
+  const Question = sequelize.define('Question', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
     text: {
-      type: String,
-      required: true,
-      trim: true
+      type: DataTypes.TEXT,
+      allowNull: false,
+      validate: {
+        notEmpty: true
+      }
     },
-    isCorrect: {
-      type: Boolean,
-      required: true
+    type: {
+      type: DataTypes.ENUM('multipleChoice', 'trueFalse', 'shortAnswer'),
+      defaultValue: 'multipleChoice'
+    },
+    category: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true
+      }
+    },
+    difficulty: {
+      type: DataTypes.ENUM('easy', 'medium', 'hard'),
+      defaultValue: 'medium'
+    },
+    options: {
+      type: DataTypes.JSONB,
+      defaultValue: []
+    },
+    correctAnswer: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    explanation: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    timeLimit: {
+      type: DataTypes.INTEGER,
+      defaultValue: 30
+    },
+    pointValue: {
+      type: DataTypes.INTEGER,
+      defaultValue: 100
+    },
+    tags: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      defaultValue: []
+    },
+    forPlayerId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Players',
+        key: 'id'
+      }
+    },
+    imageUrl: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    createdBy: {
+      type: DataTypes.ENUM('anthropic', 'admin', 'import'),
+      defaultValue: 'anthropic'
+    },
+    answerStats: {
+      type: DataTypes.JSONB,
+      defaultValue: {
+        timesAsked: 0,
+        correctAnswers: 0,
+        incorrectAnswers: 0,
+        averageResponseTime: 0
+      }
+    },
+    ratings: {
+      type: DataTypes.JSONB,
+      defaultValue: []
+    },
+    averageRating: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0
+    },
+    reports: {
+      type: DataTypes.JSONB,
+      defaultValue: []
+    },
+    flagged: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
     }
-  }],
-  correctAnswer: {
-    type: String,
-    trim: true
-    // This field will be used for short answer questions
-    // For multiple choice, the correct answer is marked in the options array
-  },
-  explanation: {
-    type: String,
-    trim: true
-  },
-  timeLimit: {
-    type: Number,
-    default: 30  // Time in seconds
-  },
-  pointValue: {
-    type: Number,
-    default: 100
-  },
-  tags: [{
-    type: String,
-    trim: true
-  }],
-  forPlayerId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Player'
-    // Only set for specialist round questions targeted at specific players
-  },
-  imageUrl: {
-    type: String
-    // Optional URL to an image related to the question
-  },
-  createdBy: {
-    type: String,
-    enum: ['anthropic', 'admin', 'import'],
-    default: 'anthropic'
-  },
-  answerStats: {
-    timesAsked: {
-      type: Number,
-      default: 0
-    },
-    correctAnswers: {
-      type: Number,
-      default: 0
-    },
-    incorrectAnswers: {
-      type: Number,
-      default: 0
-    },
-    averageResponseTime: {
-      type: Number,
-      default: 0  // in milliseconds
+  }, {
+    timestamps: true,
+    indexes: [
+      {
+        fields: ['category']
+      },
+      {
+        fields: ['difficulty']
+      },
+      {
+        fields: ['forPlayerId']
+      }
+    ]
+  });
+
+  // Set up associations
+  Question.associate = function(models) {
+    Question.belongsTo(models.Player, {
+      foreignKey: 'forPlayerId',
+      as: 'targetPlayer'
+    });
+  };
+
+  // Instance methods
+  Question.prototype.updateStats = function(correct, responseTime) {
+    const stats = this.answerStats;
+    stats.timesAsked += 1;
+
+    if (correct) {
+      stats.correctAnswers += 1;
+    } else {
+      stats.incorrectAnswers += 1;
     }
-  },
-  // Add ratings field for user ratings
-  ratings: [{
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Player',
-      required: true
-    },
-    rating: {
-      type: Number,
-      required: true,
-      min: 1,
-      max: 5
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now
+
+    // Update average response time using a weighted average
+    const totalAnswers = stats.correctAnswers + stats.incorrectAnswers;
+    const oldWeight = (totalAnswers - 1) / totalAnswers;
+    const newWeight = 1 / totalAnswers;
+
+    stats.averageResponseTime =
+      (stats.averageResponseTime * oldWeight) + (responseTime * newWeight);
+
+    this.changed('answerStats', true);
+    return this.save();
+  };
+
+  Question.prototype.isCorrectAnswer = function(answer) {
+    if (this.type === 'multipleChoice') {
+      const correctOption = this.options.find(option => option.isCorrect);
+      return correctOption && (correctOption.text === answer || correctOption.id === answer);
+    } else if (this.type === 'trueFalse') {
+      return this.correctAnswer.toLowerCase() === answer.toLowerCase();
+    } else if (this.type === 'shortAnswer') {
+      // For short answer, do a case-insensitive comparison
+      return this.correctAnswer.toLowerCase() === answer.toLowerCase();
     }
-  }],
-  // Add average rating field
-  averageRating: {
-    type: Number,
-    default: 0
-  },
-  // Add reports field for user reports
-  reports: [{
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Player',
-      required: true
-    },
-    reason: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now
-    },
-    status: {
-      type: String,
-      enum: ['pending', 'reviewed', 'dismissed'],
-      default: 'pending'
-    }
-  }],
-  // Add flagged field to mark questions with multiple reports
-  flagged: {
-    type: Boolean,
-    default: false
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+    return false;
+  };
 
-// Update the question stats after it's been answered
-QuestionSchema.methods.updateStats = function(correct, responseTime) {
-  this.answerStats.timesAsked += 1;
-  
-  if (correct) {
-    this.answerStats.correctAnswers += 1;
-  } else {
-    this.answerStats.incorrectAnswers += 1;
-  }
-  
-  // Update average response time using a weighted average
-  const totalAnswers = this.answerStats.correctAnswers + this.answerStats.incorrectAnswers;
-  const oldWeight = (totalAnswers - 1) / totalAnswers;
-  const newWeight = 1 / totalAnswers;
-  
-  this.answerStats.averageResponseTime = 
-    (this.answerStats.averageResponseTime * oldWeight) + (responseTime * newWeight);
-  
-  this.updatedAt = new Date();
-  return this.save();
+  // Static methods
+  Question.findByCategory = function(category, limit = 10) {
+    return Question.findAll({
+      where: { category },
+      limit
+    });
+  };
+
+  Question.findByDifficulty = function(difficulty, limit = 10) {
+    return Question.findAll({
+      where: { difficulty },
+      limit
+    });
+  };
+
+  Question.findForSpecialistRound = function(playerId, limit = 5) {
+    return Question.findAll({
+      where: { forPlayerId: playerId },
+      limit
+    });
+  };
+
+  Question.getRandomQuestions = async function(category, difficulty, limit = 10) {
+    const query = {};
+    if (category) query.category = category;
+    if (difficulty) query.difficulty = difficulty;
+
+    return Question.findAll({
+      where: query,
+      order: sequelize.literal('random()'),
+      limit
+    });
+  };
+
+  return Question;
 };
-
-// Check if an answer is correct
-QuestionSchema.methods.isCorrectAnswer = function(answer) {
-  if (this.type === 'multipleChoice') {
-    const correctOption = this.options.find(option => option.isCorrect);
-    return correctOption && (correctOption.text === answer || correctOption._id.toString() === answer);
-  } else if (this.type === 'trueFalse') {
-    return this.correctAnswer.toLowerCase() === answer.toLowerCase();
-  } else if (this.type === 'shortAnswer') {
-    // For short answer, do a case-insensitive comparison
-    // In a real app, this might use more sophisticated matching
-    return this.correctAnswer.toLowerCase() === answer.toLowerCase();
-  }
-  return false;
-};
-
-// Static methods for finding questions
-QuestionSchema.statics.findByCategory = function(category, limit = 10) {
-  return this.find({ category }).limit(limit);
-};
-
-QuestionSchema.statics.findByDifficulty = function(difficulty, limit = 10) {
-  return this.find({ difficulty }).limit(limit);
-};
-
-QuestionSchema.statics.findForSpecialistRound = function(playerId, limit = 5) {
-  return this.find({ forPlayerId: playerId }).limit(limit);
-};
-
-QuestionSchema.statics.getRandomQuestions = function(category, difficulty, limit = 10) {
-  const query = {};
-  if (category) query.category = category;
-  if (difficulty) query.difficulty = difficulty;
-  
-  return this.aggregate([
-    { $match: query },
-    { $sample: { size: limit } }
-  ]);
-};
-
-module.exports = mongoose.model('Question', QuestionSchema);

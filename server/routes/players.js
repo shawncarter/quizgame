@@ -9,7 +9,7 @@ console.log('Player.findByDeviceId exists:', typeof Player.findByDeviceId === 'f
 // Get all players
 router.get('/', async (req, res) => {
   try {
-    const players = await Player.find();
+    const players = await Player.findAll();
     res.json(players);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -47,19 +47,70 @@ router.get('/:id', getPlayer, (req, res) => {
 
 // Create a player
 router.post('/', async (req, res) => {
-  const player = new Player({
-    name: req.body.name,
-    age: req.body.age,
-    specialistSubject: req.body.specialistSubject,
-    avatar: req.body.avatar,
-    buzzerSound: req.body.buzzerSound,
-    deviceId: req.body.deviceId
-  });
-
   try {
-    const newPlayer = await player.save();
+    // Log the incoming request data for debugging
+    console.log('🔍 Player Registration Request:');
+    console.log('   Full request body:', JSON.stringify(req.body, null, 2));
+    console.log('   Name:', req.body.name, '(type:', typeof req.body.name, ')');
+    console.log('   Age:', req.body.age, '(type:', typeof req.body.age, ')');
+    console.log('   Specialist Subject:', req.body.specialistSubject, '(type:', typeof req.body.specialistSubject, ')');
+    console.log('   Avatar:', req.body.avatar, '(type:', typeof req.body.avatar, ')');
+    console.log('   Buzzer Sound:', req.body.buzzerSound, '(type:', typeof req.body.buzzerSound, ')');
+    console.log('   Device ID:', req.body.deviceId, '(type:', typeof req.body.deviceId, ')');
+
+    // Check if a player with this deviceId already exists
+    if (req.body.deviceId) {
+      const existingPlayer = await Player.findOne({ where: { deviceId: req.body.deviceId } });
+
+      if (existingPlayer) {
+        console.log('🔄 Player with deviceId already exists, updating existing player:', {
+          existingId: existingPlayer.id,
+          existingName: existingPlayer.name,
+          newName: req.body.name
+        });
+
+        // Update the existing player with new information
+        existingPlayer.name = req.body.name;
+        existingPlayer.age = req.body.age;
+        existingPlayer.specialistSubject = req.body.specialistSubject;
+        existingPlayer.avatar = req.body.avatar || existingPlayer.avatar;
+        existingPlayer.buzzerSound = req.body.buzzerSound || existingPlayer.buzzerSound;
+        existingPlayer.lastActive = new Date();
+
+        const updatedPlayer = await existingPlayer.save();
+
+        console.log('✅ Player updated successfully:', {
+          id: updatedPlayer.id,
+          name: updatedPlayer.name,
+          age: updatedPlayer.age,
+          specialistSubject: updatedPlayer.specialistSubject
+        });
+
+        return res.status(200).json(updatedPlayer);
+      }
+    }
+
+    // Create new player if no existing player found
+    const newPlayer = await Player.create({
+      name: req.body.name,
+      age: req.body.age,
+      specialistSubject: req.body.specialistSubject,
+      avatar: req.body.avatar,
+      buzzerSound: req.body.buzzerSound,
+      deviceId: req.body.deviceId
+    });
+
+    console.log('✅ Player created successfully:', {
+      id: newPlayer.id,
+      name: newPlayer.name,
+      age: newPlayer.age,
+      specialistSubject: newPlayer.specialistSubject
+    });
+
     res.status(201).json(newPlayer);
   } catch (err) {
+    console.log('❌ Player creation failed:', err.message);
+    console.log('   Error details:', err);
     res.status(400).json({ message: err.message });
   }
 });
@@ -96,7 +147,7 @@ router.patch('/:id', getPlayer, async (req, res) => {
 // Delete a player
 router.delete('/:id', getPlayer, async (req, res) => {
   try {
-    await res.player.remove();
+    await res.player.destroy();
     res.json({ message: 'Player deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -132,7 +183,7 @@ router.get('/:id/stats', getPlayer, async (req, res) => {
 async function getPlayer(req, res, next) {
   let player;
   try {
-    player = await Player.findById(req.params.id);
+    player = await Player.findByPk(req.params.id);
     if (player == null) {
       return res.status(404).json({ message: 'Player not found' });
     }

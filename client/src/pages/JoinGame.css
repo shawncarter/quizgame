@@ -1,0 +1,130 @@
+.join-game-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  text-align: center;
+}
+
+.join-game-header {
+  margin-bottom: 30px;
+}
+
+.join-game-header h1 {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.join-game-header p {
+  font-size: 1rem;
+  color: #666;
+}
+
+.join-game-error {
+  background-color: #ffebee;
+  color: #d32f2f;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.join-game-content {
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.join-game-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #333;
+}
+
+.form-group input {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.join-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  margin-top: 10px;
+}
+
+.join-button:hover {
+  background-color: #388e3c;
+}
+
+.join-button:disabled {
+  background-color: #9e9e9e;
+  cursor: not-allowed;
+}
+
+.join-game-alternative,
+.join-game-scan {
+  margin-top: 20px;
+}
+
+.host-button,
+.scan-button {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  margin-top: 5px;
+}
+
+.host-button:hover,
+.scan-button:hover {
+  background-color: #1976d2;
+}
+
+.host-button:disabled,
+.scan-button:disabled {
+  background-color: #9e9e9e;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .join-game-page {
+    padding: 15px;
+  }
+  
+  .join-game-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .form-group input,
+  .join-button,
+  .host-button,
+  .scan-button {
+    padding: 10px;
+  }
+}

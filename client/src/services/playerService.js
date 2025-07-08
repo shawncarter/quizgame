@@ -124,16 +124,17 @@ const updatePlayerData = (updates) => {
  */
 const registerPlayer = async (playerData) => {
   try {
-    // Note: API_URL is not defined in this file, so this function might need to be moved
-    // to playerApiService.js or have API_URL imported
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    // Use the API URL from config
+    const { API_URL } = require('../config/config');
+    console.log('Using API URL for registration:', API_URL);
+
     const response = await axios.post(`${API_URL}/players/register`, playerData);
 
     if (response.data && response.data.data) {
       const player = response.data.data;
 
       // Store player data in localStorage using the correct keys
-      savePlayerId(player._id);
+      savePlayerId(player?.id);
       savePlayerData(player);
 
       // If token is provided, store it
@@ -141,7 +142,7 @@ const registerPlayer = async (playerData) => {
         savePlayerToken(response.data.token);
       }
 
-      console.log('Player registered and stored in localStorage:', player._id);
+      console.log('Player registered and stored in localStorage:', player?.id);
 
       return player;
     } else {

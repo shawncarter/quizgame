@@ -7,16 +7,17 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    host: '0.0.0.0', // Listen on all network interfaces
     proxy: {
       '/socket.io': {
-        target: 'http://localhost:5000',
+        target: 'http://192.168.0.87:5000',
         ws: true,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path
       },
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://192.168.0.87:5000',
         changeOrigin: true,
         secure: false
       }

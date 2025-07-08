@@ -15,7 +15,7 @@ const config = require('../config/app');
 async function generateGameSessionQRCode(gameSessionId, options = {}) {
   try {
     // Find the game session to verify it exists and get the code
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw new Error(`Game session with ID ${gameSessionId} not found`);
     }
@@ -50,7 +50,7 @@ async function generateGameSessionQRCode(gameSessionId, options = {}) {
 async function generateGameSessionQRCodeBuffer(gameSessionId, options = {}) {
   try {
     // Find the game session to verify it exists and get the code
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw new Error(`Game session with ID ${gameSessionId} not found`);
     }
@@ -86,7 +86,7 @@ async function generateGameSessionQRCodeBuffer(gameSessionId, options = {}) {
 async function generateGameSessionQRCodeString(gameSessionId, options = {}) {
   try {
     // Find the game session to verify it exists and get the code
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw new Error(`Game session with ID ${gameSessionId} not found`);
     }
@@ -147,11 +147,14 @@ async function generateQRCodeFromGameCode(gameCode, options = {}) {
  * @returns {string} - The URL for joining the game session
  */
 function constructJoinUrl(gameCode) {
-  // Get the client URL from config or use a default
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-  
+  // Get the client URL from config
+  const config = require('../config/config');
+  const clientUrl = config.CLIENT_URL;
+
   // Construct the full URL for joining the game
-  return `${clientUrl}/join/${gameCode}`;
+  const joinUrl = `${clientUrl}/join/${gameCode}`;
+  console.log('Generated QR code URL:', joinUrl);
+  return joinUrl;
 }
 
 /**
@@ -162,11 +165,16 @@ function constructJoinUrl(gameCode) {
 async function validateGameCode(gameCode) {
   try {
     // Check if the game code exists and the session is active
-    const gameSession = await GameSession.findOne({ 
-      code: gameCode,
-      status: { $in: ['waiting', 'lobby', 'active'] }
+    const { Op } = require('sequelize');
+    const gameSession = await GameSession.findOne({
+      where: {
+        code: gameCode,
+        status: {
+          [Op.in]: ['waiting', 'lobby', 'active']
+        }
+      }
     });
-    
+
     return !!gameSession;
   } catch (error) {
     console.error('Error validating game code:', error);

@@ -57,13 +57,13 @@ const DebugPanel = () => {
           <div className="debug-section">
             <h4>Player Info</h4>
             <p>Logged In: <span className={isLoggedIn ? 'status-ok' : 'status-error'}>{isLoggedIn ? 'Yes' : 'No'}</span></p>
-            <p>Player ID: {player?._id || 'Not logged in'}</p>
+            <p>Player ID: {player?.id || 'Not logged in'}</p>
             <p>Player Name: {player?.name || 'Not logged in'}</p>
           </div>
           
           <div className="debug-section">
             <h4>Game Info</h4>
-            <p>Game ID: {gameSession?._id || 'No game'}</p>
+            <p>Game ID: {gameSession?.id || 'No game'}</p>
             <p>Game Code: {gameSession?.code || 'No game'}</p>
             <p>Players: {players?.length || 0}</p>
             <p>Current Round: {currentRound?.roundNumber || 'None'}</p>

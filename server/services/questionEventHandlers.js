@@ -23,7 +23,7 @@ async function handleQuestionNext(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -44,7 +44,7 @@ async function handleQuestionNext(socket, data) {
     // Handle specified question if provided in data
     let question;
     if (data.questionId) {
-      question = await Question.findById(data.questionId);
+      question = await Question.findByPk(data.questionId);
       if (!question) {
         throw createSocketError('Question not found', 'QUESTION_NOT_FOUND');
       }
@@ -105,7 +105,7 @@ async function handleQuestionNext(socket, data) {
         roundNumber: gameSession.currentRound,
         roundType: gameSession.currentRoundType || 'standard',
         questions: [{
-          questionId: question._id,
+          questionId: question.id,
           startTime: questionStartTime,
           timeLimit: timeLimit,
           active: true
@@ -114,7 +114,7 @@ async function handleQuestionNext(socket, data) {
     } else {
       // Add question to existing round
       gameSession.rounds[currentRoundIndex].questions.push({
-        questionId: question._id,
+        questionId: question.id,
         startTime: questionStartTime,
         timeLimit: timeLimit,
         active: true
@@ -126,7 +126,7 @@ async function handleQuestionNext(socket, data) {
     
     // Prepare question data for clients (without answer)
     const questionData = {
-      id: question._id,
+      id: question.id,
       text: question.text,
       options: question.options,
       category: question.category,
@@ -141,7 +141,7 @@ async function handleQuestionNext(socket, data) {
     };
     
     // Set up question timer
-    setupQuestionTimer(gameSessionCode, timeLimit, socket, gameSession._id, question._id);
+    setupQuestionTimer(gameSessionCode, timeLimit, socket, gameSession.id, question.id);
     
     // Broadcast question to all players
     socket.to(gameSessionCode).emit('question:new', questionData);
@@ -153,12 +153,12 @@ async function handleQuestionNext(socket, data) {
       explanation: question.explanation
     });
     
-    console.log(`New question sent to game ${gameSessionCode}: ${question._id}`);
+    console.log(`New question sent to game ${gameSessionCode}: ${question.id}`);
     
     // Return success status
     return {
       success: true,
-      questionId: question._id
+      questionId: question.id
     };
   } catch (error) {
     console.error('Error handling question:next:', error);
@@ -184,7 +184,7 @@ function setupQuestionTimer(gameSessionCode, timeLimit, socket, gameSessionId, q
   const timerId = setTimeout(async () => {
     try {
       // Time's up for the question
-      const gameSession = await GameSession.findById(gameSessionId);
+      const gameSession = await GameSession.findByPk(gameSessionId);
       if (!gameSession) {
         console.error(`Game session ${gameSessionId} not found when ending question timer`);
         return;
@@ -209,7 +209,7 @@ function setupQuestionTimer(gameSessionCode, timeLimit, socket, gameSessionId, q
       await gameSession.save();
       
       // Get the question details
-      const question = await Question.findById(questionId);
+      const question = await Question.findByPk(questionId);
       if (!question) {
         console.error(`Question ${questionId} not found when ending timer`);
         return;
@@ -269,7 +269,7 @@ async function handleQuestionReveal(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -280,7 +280,7 @@ async function handleQuestionReveal(socket, data) {
     }
     
     // Find the question
-    const question = await Question.findById(data.questionId);
+    const question = await Question.findByPk(data.questionId);
     if (!question) {
       throw createSocketError('Question not found', 'QUESTION_NOT_FOUND');
     }
@@ -403,7 +403,7 @@ async function getPlayerQuestionStats(gameSession, questionId) {
       );
       
       // Get player details
-      const player = await Player.findById(playerId).select('name avatar');
+      const player = await Player.findByPk(playerId).select('name avatar');
       
       playerStats.push({
         playerId: playerId,
@@ -452,7 +452,7 @@ async function handleAnswerSubmit(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -490,7 +490,7 @@ async function handleAnswerSubmit(socket, data) {
     }
     
     // Get the question to check the answer
-    const question = await Question.findById(data.questionId);
+    const question = await Question.findByPk(data.questionId);
     if (!question) {
       throw createSocketError('Question not found', 'QUESTION_NOT_FOUND');
     }
@@ -654,7 +654,7 @@ async function handleAnswerCorrect(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }
@@ -765,7 +765,7 @@ async function handleAnswerIncorrect(socket, data) {
     }
     
     // Find game session
-    const gameSession = await GameSession.findById(gameSessionId);
+    const gameSession = await GameSession.findByPk(gameSessionId);
     if (!gameSession) {
       throw createSocketError('Game session not found', 'GAME_NOT_FOUND');
     }

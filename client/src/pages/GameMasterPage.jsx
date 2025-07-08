@@ -55,23 +55,28 @@ const GameMasterPage = () => {
   console.log('GameMasterPage - Game Status:', gameStatus);
   console.log('GameMasterPage - Error:', error);
 
-  // Check if player is registered
+  // Check if player is registered - but be more lenient during loading
   useEffect(() => {
-    if (!isLoggedIn && player === null) {
-      console.log('Player not logged in, redirecting to register');
-      // Store the game ID in localStorage before redirecting
-      if (gameId) {
-        localStorage.setItem('lastCreatedGameId', gameId);
-      }
-      navigate('/register', {
-        state: {
-          returnTo: `/game-master/${gameId}`,
-          gameId: gameId
+    // Give more time for player data to load before redirecting
+    const checkPlayerTimeout = setTimeout(() => {
+      if (!isLoggedIn && player === null) {
+        console.log('Player not logged in after timeout, redirecting to register');
+        // Store the game ID in localStorage before redirecting
+        if (gameId) {
+          localStorage.setItem('lastCreatedGameId', gameId);
         }
-      });
-    } else {
-      console.log('Player is logged in, no need to redirect to register');
-    }
+        navigate('/register', {
+          state: {
+            returnTo: `/game-master/${gameId}`,
+            gameId: gameId
+          }
+        });
+      } else {
+        console.log('Player is logged in, no need to redirect to register');
+      }
+    }, 2000); // Wait 2 seconds for player data to load
+
+    return () => clearTimeout(checkPlayerTimeout);
   }, [isLoggedIn, navigate, gameId, player]);
 
   // Check for game session in location state (passed from HostGamePage)
@@ -79,20 +84,21 @@ const GameMasterPage = () => {
     console.log('Location state check - Current location state:', location.state);
 
     if (location.state?.gameSession && location.state?.fromHostPage) {
-      console.log('Found game session in location state:', location.state.gameSession._id);
+      const gameSessionFromState = location.state.gameSession;
+      const gameSessionStateId = gameSessionFromState.id || gameSessionFromState.id; // Support both ID formats
+      console.log('Found game session in location state:', gameSessionStateId);
       setUsingLocationState(true);
 
       // If we have a game session in location state but no gameId, use it
-      if ((!gameId || gameId === 'undefined') && location.state.gameSession._id) {
+      if ((!gameId || gameId === 'undefined') && gameSessionStateId) {
         console.log('Using game ID from location state');
-        const gameIdFromState = location.state.gameSession._id;
-        console.log('Game ID from state:', gameIdFromState);
+        console.log('Game ID from state:', gameSessionStateId);
 
         // Store in localStorage as a backup
-        localStorage.setItem('lastCreatedGameId', gameIdFromState);
+        localStorage.setItem('lastCreatedGameId', gameSessionStateId);
 
         // Set the game ID state
-        setGameId(gameIdFromState);
+        setGameId(gameSessionStateId);
       }
     } else {
       console.log('No game session in location state or not from host page');
@@ -112,14 +118,19 @@ const GameMasterPage = () => {
   useEffect(() => {
     console.log('=== GAME MASTER PAGE - CONNECT TO GAME EFFECT ===');
     console.log('Connect to game effect - gameId:', gameId);
-    console.log('Connect to game effect - usingLocationState:', usingLocationState);
-    console.log('Connect to game effect - location.state:', location.state);
     console.log('Connect to game effect - player:', player);
     console.log('Connect to game effect - isLoggedIn:', isLoggedIn);
     console.log('Connect to game effect - gameStatus:', gameStatus);
     console.log('Connect to game effect - gameSession:', gameSession);
     console.log('Connect to game effect - localStorage lastCreatedGameId:', localStorage.getItem('lastCreatedGameId'));
-    console.log('Connect to game effect - localStorage lastCreatedGameCode:', localStorage.getItem('lastCreatedGameCode'));
+
+    // If we already have a game session and it matches the current gameId, don't reconnect
+    const gameSessionId = gameSession?.id || gameSession?.id; // Support both ID formats
+    if (gameSession && gameSessionId && gameSessionId.toString() === gameId.toString() && gameStatus !== 'error') {
+      console.log('Already connected to the correct game session, skipping reconnection');
+      console.log('Game session ID:', gameSessionId, 'URL game ID:', gameId);
+      return;
+    }
 
     // First check if we have a valid game ID
     if (!gameId || gameId === 'undefined') {
@@ -145,9 +156,10 @@ const GameMasterPage = () => {
     // Define an async function to handle the connection logic
     const handleGameConnection = async () => {
       // Check if we're connected to a different game than the one in the URL
-      if (gameSession && gameSession._id !== gameId) {
+      const currentGameSessionId = gameSession?.id || gameSession?.id; // Support both ID formats
+      if (gameSession && currentGameSessionId && currentGameSessionId.toString() !== gameId.toString()) {
         console.log('Connected to a different game than the one in the URL');
-        console.log('Current game session ID:', gameSession._id);
+        console.log('Current game session ID:', currentGameSessionId);
         console.log('URL game ID:', gameId);
 
         // Disconnect from the current game - IMPORTANT: Don't preserve state here
@@ -158,64 +170,68 @@ const GameMasterPage = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // Connect if we're not already connected to this specific game
-      const shouldConnect =
-        // Not connected at all
-        (gameStatus !== 'active' && gameStatus !== 'loading' && !gameSession) ||
-        // Connected to a different game
-        (gameSession && gameSession._id !== gameId);
+      // Always attempt to connect if we have a valid gameId and player
+      if (gameId && player && (player?.id || player?.id)) {
+        const playerId = player?.id || player?.id; // Support both ID formats
+        console.log(`Connecting to game ${gameId} as player ${playerId}`);
 
-      if (shouldConnect) {
-        // If we have a game ID and player, connect to the game
-        if (gameId && player && player._id) {
-          console.log(`Connecting to game ${gameId} as player ${player._id}`);
+        try {
+          // Check if we have game session data in location state
+          const locationState = location.state;
+          const gameSessionFromState = locationState?.gameSession;
 
-          // If we have a game session in location state, pass it to connectToGame
-          if (location.state?.gameSession && location.state.gameSession._id === gameId) {
-            console.log('Using game session from location state for connectToGame');
-            console.log('Game session from state:', location.state.gameSession);
-            connectToGame(gameId, { gameSessionData: location.state.gameSession });
+          console.log('=== GAME MASTER CONNECTION DEBUG ===');
+          console.log('Location state:', locationState);
+          console.log('Game session from state:', gameSessionFromState);
+          console.log('Game ID we want to connect to:', gameId);
+
+          // Make sure the game ID is valid before connecting
+          if (gameId && gameId !== 'undefined') {
+            console.log('Connecting to game with ID:', gameId);
+
+            // If we have game session data in location state, pass it to connectToGame
+            const gameSessionStateId = gameSessionFromState?.id || gameSessionFromState?.id; // Support both ID formats
+            console.log('Game session state ID:', gameSessionStateId);
+            
+            if (gameSessionFromState && gameSessionStateId === gameId) {
+              console.log('Using game session data from location state');
+              console.log('Passing gameSessionData to connectToGame:', gameSessionFromState);
+              await connectToGame(gameId, { gameSessionData: gameSessionFromState });
+            } else {
+              console.log('No matching game session data in location state, fetching from API');
+              await connectToGame(gameId);
+            }
           } else {
-            // Double check localStorage as a backup
-            const lastCreatedGameId = localStorage.getItem('lastCreatedGameId');
-            if (lastCreatedGameId === gameId) {
-              console.log('Game ID matches localStorage ID, using it for connection');
-            } else {
-              console.log('Game ID does not match localStorage ID, using provided game ID');
-            }
-
-            // Make sure the game ID is valid before connecting
-            if (gameId && gameId !== 'undefined') {
-              console.log('Connecting to game with ID:', gameId);
-              connectToGame(gameId);
-            } else {
-              console.error('Cannot connect: Invalid game ID');
-              setLocalError('Invalid game ID. Please create a new game.');
-            }
+            console.error('Cannot connect: Invalid game ID');
+            setLocalError('Invalid game ID. Please create a new game.');
           }
-        } else {
-          console.log('Missing gameId or player:', { gameId, playerId: player?._id });
-          // If we have a gameId but no player, wait for player to load
-          if (gameId && (!player || !player._id)) {
-            console.log('Have gameId but no player, waiting for player to load...');
-          }
+        } catch (err) {
+          console.error('Error connecting to game:', err);
+          setLocalError(`Failed to connect to game: ${err.message || 'Unknown error'}`);
         }
       } else {
-        console.log('Already connected to the correct game, skipping connection');
-        console.log('Current game status:', gameStatus);
-        console.log('Current game session ID:', gameSession?._id);
+        const playerId = player?.id || player?.id; // Support both ID formats
+        console.log('Missing gameId or player:', { gameId, playerId });
+        // If we have a gameId but no player, wait for player to load
+        if (gameId && (!player || (!player?.id && !player?.id))) {
+          console.log('Have gameId but no player, waiting for player to load...');
+        }
       }
     };
 
-    // Execute the connection logic
-    handleGameConnection();
+    // Execute the connection logic with a small delay to ensure all state is initialized
+    const connectWithDelay = setTimeout(() => {
+      handleGameConnection();
+    }, 100);
 
     return () => {
-      console.log('GameMasterPage unmounting, disconnecting from game but preserving state');
-      // Preserve the game state when unmounting to prevent flickering
-      disconnectFromGame(true);
+      // Clear the timeout if the component unmounts before it fires
+      clearTimeout(connectWithDelay);
+
+      // Don't disconnect when unmounting to prevent flickering
+      // The game context will handle cleanup on its own
     };
-  }, [gameId, player, gameSession, gameStatus, disconnectFromGame, connectToGame, navigate]);
+  }, [gameId, player, gameSession, gameStatus, disconnectFromGame, connectToGame, navigate, location.state]);
 
   // Handle loading state
   if (gameStatus === 'loading') {
@@ -224,7 +240,7 @@ const GameMasterPage = () => {
         <h2>Loading Game Session...</h2>
         <div className="loading-spinner"></div>
         <p>Game ID: {gameId}</p>
-        <p>Player ID: {player?._id}</p>
+        <p>Player ID: {player?.id}</p>
         <DebugPanel />
       </div>
     );
@@ -250,7 +266,7 @@ const GameMasterPage = () => {
         </div>
         <div className="error-details">
           <p>Game ID: {gameId}</p>
-          <p>Player ID: {player?._id}</p>
+          <p>Player ID: {player?.id}</p>
           <p>Status: {gameStatus}</p>
         </div>
         <DebugPanel />
@@ -277,7 +293,7 @@ const GameMasterPage = () => {
         </div>
         <div className="error-details">
           <p>Game ID: {gameId}</p>
-          <p>Player ID: {player?._id}</p>
+          <p>Player ID: {player?.id}</p>
           <p>Status: {gameStatus}</p>
           <p>Error: {error || localError || 'No game session data found'}</p>
         </div>

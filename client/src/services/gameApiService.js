@@ -4,18 +4,17 @@
  */
 import axios from 'axios';
 import playerService from './playerService';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../config/config';
 
 /**
  * Get authentication headers with player token
  * @returns {Object} Headers object with auth token
  */
 const getAuthHeaders = () => {
-  const playerId = playerService.getPlayerId();
+  const deviceId = playerService.getDeviceId(); // Use device ID for authentication
   const playerToken = playerService.getPlayerToken();
 
-  const token = playerToken || playerId;
+  const token = playerToken || deviceId; // Prefer token, fallback to device ID
 
   console.log('Using auth token for API request:', token ? 'Token exists' : 'No token');
 
@@ -35,7 +34,13 @@ const getAuthHeaders = () => {
 const createGameSession = async (gameData) => {
   try {
     const response = await axios.post(`${API_URL}/games`, gameData, getAuthHeaders());
-    return response.data.data;
+    const gameSession = response.data.data;
+
+    // Store the game ID and code in localStorage
+    localStorage.setItem('lastCreatedGameId', gameSession.id);
+    localStorage.setItem('lastCreatedGameCode', gameSession.code);
+
+    return gameSession;
   } catch (error) {
     console.error('Error creating game session:', error);
     throw error;
@@ -80,7 +85,7 @@ const getGameSessionById = async (gameId) => {
     console.log('Successfully retrieved game session:', gameData);
 
     // Store the game ID in localStorage as a backup
-    localStorage.setItem('lastCreatedGameId', gameData._id);
+    localStorage.setItem('lastCreatedGameId', gameData.id);
     if (gameData.code) {
       localStorage.setItem('lastCreatedGameCode', gameData.code);
     }
@@ -233,6 +238,45 @@ const leaveGameSession = async (gameId) => {
   }
 };
 
+/**
+ * Get games hosted by the current player
+ * @returns {Promise<Array>} Array of games hosted by the player
+ */
+const getHostedGames = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/games/hosted`, getAuthHeaders());
+    return response.data.data;
+  } catch (error) {
+    console.error('Error getting hosted games:', error);
+
+    // If the endpoint doesn't exist yet, return the last created game from localStorage
+    const lastCreatedGameId = localStorage.getItem('lastCreatedGameId');
+    const lastCreatedGameCode = localStorage.getItem('lastCreatedGameCode');
+
+    if (lastCreatedGameId) {
+      try {
+        // Try to fetch the game details
+        const gameData = await getGameSessionById(lastCreatedGameId);
+        return [gameData];
+      } catch (innerError) {
+        console.error('Error fetching last created game:', innerError);
+
+        // If we can't fetch the game, return a basic object with the stored data
+        if (lastCreatedGameId && lastCreatedGameCode) {
+          return [{
+            _id: lastCreatedGameId,
+            code: lastCreatedGameCode,
+            status: 'unknown'
+          }];
+        }
+      }
+    }
+
+    // If all else fails, return an empty array
+    return [];
+  }
+};
+
 export default {
   createGameSession,
   getGameSessionById,
@@ -244,5 +288,6 @@ export default {
   getGameSessionPlayers,
   deleteGameSession,
   joinGameSession,
-  leaveGameSession
+  leaveGameSession,
+  getHostedGames
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../../context/PlayerContext';
-import { createPlayerSocket, connectSocket, disconnectSocket } from '../../services/gameSocketService';
+import { createGameSocket, connectSocket, disconnectSocket } from '../../services/gameSocketService';
 import BuzzerButton from './BuzzerButton';
 import MultipleChoiceAnswers from './MultipleChoiceAnswers';
 import PlayerScoreDisplay from './PlayerScoreDisplay';
@@ -60,85 +60,18 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     duration: 3000
   });
 
-  // Initialize socket connection
-  useEffect(() => {
-    if (!player || !player._id || !gameSessionId) return;
-    
-    const playerSocket = createPlayerSocket(player._id, gameSessionId);
-    setSocket(playerSocket);
-    
-    connectSocket(playerSocket)
-      .then(() => {
-        setConnected(true);
-        console.log('Connected to game session:', gameSessionId);
-        
-        // Request initial game state
-        playerSocket.emit('game:request_state');
-      })
-      .catch(error => {
-        console.error('Failed to connect to game session:', error);
-        showNotification('Failed to connect to game. Please try again.', 'error');
-      });
-    
-    return () => {
-      if (playerSocket) {
-        disconnectSocket(playerSocket);
-        setConnected(false);
-      }
-    };
-  }, [player, gameSessionId]);
 
-  // Set up socket event handlers
-  useEffect(() => {
-    if (!socket) return;
-    
-    // Game state events
-    socket.on('game:state', handleGameState);
-    socket.on('game:players', handleGamePlayers);
-    socket.on('game:round', handleGameRound);
-    socket.on('question:new', handleNewQuestion);
-    socket.on('question:reveal', handleRevealAnswer);
-    socket.on('buzzer:enable', handleBuzzerEnable);
-    socket.on('buzzer:disable', handleBuzzerDisable);
-    socket.on('buzzer:result', handleBuzzerResult);
-    socket.on('player:score', handlePlayerScore);
-    socket.on('game:notification', handleGameNotification);
-    socket.on('game:countdown', handleGameCountdown);
-    socket.on('game:end', handleGameEnd);
-    
-    // Error events
-    socket.on('error', handleError);
-    
-    // Connection events
-    socket.on('disconnect', () => {
-      setConnected(false);
-      showNotification('Disconnected from game server', 'warning');
-    });
-    
-    socket.on('reconnect', () => {
-      setConnected(true);
-      showNotification('Reconnected to game server', 'success');
-      
-      // Request current game state
-      socket.emit('game:request_state');
-    });
-    
-    return () => {
-      socket.off('game:state', handleGameState);
-      socket.off('game:players', handleGamePlayers);
-      socket.off('game:round', handleGameRound);
-      socket.off('question:new', handleNewQuestion);
-      socket.off('question:reveal', handleRevealAnswer);
-      socket.off('buzzer:enable', handleBuzzerEnable);
-      socket.off('buzzer:disable', handleBuzzerDisable);
-      socket.off('buzzer:result', handleBuzzerResult);
-      socket.off('player:score', handlePlayerScore);
-      socket.off('game:notification', handleGameNotification);
-      socket.off('game:countdown', handleGameCountdown);
-      socket.off('game:end', handleGameEnd);
-      socket.off('error', handleError);
-    };
-  }, [socket]);
+  // Helper functions
+  const showNotification = useCallback((message, type = 'info', duration = 3000) => {
+    setNotification({ message, type, visible: true, duration });
+
+    // Auto-hide notification after duration (if not persistent)
+    if (duration > 0) {
+      setTimeout(() => {
+        setNotification(prev => ({ ...prev, visible: false }));
+      }, duration);
+    }
+  }, []); // setNotification is stable
 
   // Event handlers
   const handleGameState = useCallback((data) => {
@@ -194,8 +127,8 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     }
     
     // Update player rank if available
-    if (data.players && player && player._id) {
-      const currentPlayer = data.players.find(p => p.id === player._id);
+    if (data.players && player && player?.id) {
+      const currentPlayer = data.players.find(p => p.id === player?.id);
       if (currentPlayer && currentPlayer.rank) {
         setRank(currentPlayer.rank);
       }
@@ -223,7 +156,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     setGameState('waiting');
     setWaitingMessage(`Round ${data.roundNumber}: ${data.roundName}`);
     setWaitingSubMessage(data.roundDescription || 'Get ready for the next round!');
-  }, []);
+  }, [showNotification]);
 
   const handleNewQuestion = useCallback((data) => {
     console.log('New question:', data);
@@ -247,7 +180,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     questionSound.play().catch(err => console.error('Error playing question sound:', err));
     
     showNotification('New Question!', 'info');
-  }, []);
+  }, [showNotification, setGameState, setCurrentQuestion, setQuestionType, setAnswerOptions, setTimeLimit, setSelectedAnswer, setCorrectAnswer, setShowCorrectAnswer, setBuzzerEnabled, setBuzzed]);
 
   const handleRevealAnswer = useCallback((data) => {
     console.log('Answer revealed:', data);
@@ -262,7 +195,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
       isCorrect ? 'Correct Answer!' : 'Incorrect Answer', 
       isCorrect ? 'success' : 'error'
     );
-  }, [selectedAnswer]);
+  }, [showNotification, setGameState, setCorrectAnswer, setShowCorrectAnswer, setBuzzerEnabled, selectedAnswer]);
 
   const handleBuzzerEnable = useCallback(() => {
     console.log('Buzzer enabled');
@@ -272,19 +205,19 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     // Play buzzer ready sound if available
     const buzzerReadySound = new Audio('/sounds/buzzer-ready.mp3');
     buzzerReadySound.play().catch(err => console.error('Error playing buzzer ready sound:', err));
-  }, []);
+  }, [showNotification, setBuzzerEnabled]);
 
   const handleBuzzerDisable = useCallback(() => {
     console.log('Buzzer disabled');
     setBuzzerEnabled(false);
-  }, []);
+  }, [setBuzzerEnabled]);
 
   const handleBuzzerResult = useCallback((data) => {
     console.log('Buzzer result:', data);
     
-    if (data.playerId === player?._id) {
+    if (data.playerId === player?.id) {
       // This player buzzed in first
-      showNotification('You buzzed in first!', 'success');
+      showNotification(`+${data.points} points!`, 'success', 1500);
       setGameState('answer');
     } else {
       // Another player buzzed in first
@@ -293,7 +226,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
       setWaitingMessage('Another player buzzed in first');
       setWaitingSubMessage('Please wait while they answer...');
     }
-  }, [player]);
+  }, [showNotification, setGameState, setWaitingMessage, setWaitingSubMessage, player]);
 
   const handlePlayerScore = useCallback((data) => {
     console.log('Player score update:', data);
@@ -321,12 +254,12 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     if (data.stats) {
       setPlayerStats(data.stats);
     }
-  }, [score]);
+  }, [score, setScore, setRank, setPlayerStats, setRecentPoints]);
 
   const handleGameNotification = useCallback((data) => {
     console.log('Game notification:', data);
-    showNotification(data.message, data.type || 'info', data.duration);
-  }, []);
+    showNotification(data.message, data.type || 'info', data.duration || 3000);
+  }, [showNotification]);
 
   const handleGameCountdown = useCallback((data) => {
     console.log('Game countdown:', data);
@@ -339,26 +272,99 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     if (data.subMessage) {
       setWaitingSubMessage(data.subMessage);
     }
-  }, []);
+  }, [setCountdown, setWaitingMessage, setWaitingSubMessage]);
 
   const handleGameEnd = useCallback((data) => {
     console.log('Game ended:', data);
-    showNotification('Game has ended!', 'info');
-    
-    // Navigate to results page or show game summary
-    setTimeout(() => {
-      if (onExit && typeof onExit === 'function') {
-        onExit();
-      } else {
-        navigate('/');
-      }
-    }, 3000);
-  }, [navigate, onExit]);
+    showNotification(data.message || 'The game has ended!', 'info', 5000);
+    // Optionally navigate to a results page or back to lobby
+    // navigate('/results'); 
+  }, [showNotification]);
 
-  const handleError = useCallback((error) => {
-    console.error('Game error:', error);
-    showNotification(error.message || 'An error occurred', 'error');
-  }, []);
+  const handleError = useCallback((errorData) => {
+    console.error('Game error:', errorData);
+    showNotification(errorData.message || 'An error occurred', 'error');
+  }, [showNotification]);
+
+  // Initialize socket connection
+  useEffect(() => {
+    if (!player || !player?.id || !gameSessionId) return;
+
+    const gameSocket = createGameSocket(player?.id, gameSessionId);
+    setSocket(gameSocket);
+    
+    connectSocket(gameSocket)
+      .then(() => {
+        setConnected(true);
+        console.log('Connected to game session:', gameSessionId);
+        
+        // Request initial game state
+        gameSocket.emit('game:request_state');
+      })
+      .catch(error => {
+        console.error('Failed to connect to game session:', error);
+        showNotification('Failed to connect to game. Please try again.', 'error');
+      });
+    
+    return () => {
+      if (gameSocket) {
+        disconnectSocket(gameSocket);
+        setConnected(false);
+      }
+    };
+  }, [player, gameSessionId, showNotification]);
+
+  // Set up socket event handlers
+  useEffect(() => {
+    if (!socket) return;
+    
+    // Game state events
+    socket.on('game:state', handleGameState);
+    socket.on('game:players', handleGamePlayers);
+    socket.on('game:round', handleGameRound);
+    socket.on('question:new', handleNewQuestion);
+    socket.on('question:reveal', handleRevealAnswer);
+    socket.on('buzzer:enable', handleBuzzerEnable);
+    socket.on('buzzer:disable', handleBuzzerDisable);
+    socket.on('buzzer:result', handleBuzzerResult);
+    socket.on('player:score', handlePlayerScore);
+    socket.on('game:notification', handleGameNotification);
+    socket.on('game:countdown', handleGameCountdown);
+    socket.on('game:end', handleGameEnd);
+    
+    // Error events
+    socket.on('error', handleError);
+    
+    // Connection events
+    socket.on('disconnect', () => {
+      setConnected(false);
+      showNotification('Disconnected from game server', 'warning');
+    });
+    
+    socket.on('reconnect', () => {
+      setConnected(true);
+      showNotification('Reconnected to game server', 'success');
+      
+      // Request current game state
+      socket.emit('game:request_state');
+    });
+    
+    return () => {
+      socket.off('game:state', handleGameState);
+      socket.off('game:players', handleGamePlayers);
+      socket.off('game:round', handleGameRound);
+      socket.off('question:new', handleNewQuestion);
+      socket.off('question:reveal', handleRevealAnswer);
+      socket.off('buzzer:enable', handleBuzzerEnable);
+      socket.off('buzzer:disable', handleBuzzerDisable);
+      socket.off('buzzer:result', handleBuzzerResult);
+      socket.off('player:score', handlePlayerScore);
+      socket.off('game:notification', handleGameNotification);
+      socket.off('game:countdown', handleGameCountdown);
+      socket.off('game:end', handleGameEnd);
+      socket.off('error', handleError);
+    };
+  }, [socket, handleGameState, handleGamePlayers, handleGameRound, handleNewQuestion, handleRevealAnswer, handleBuzzerEnable, handleBuzzerDisable, handleBuzzerResult, handlePlayerScore, handleGameNotification, handleGameCountdown, handleGameEnd, handleError, showNotification]);
 
   // User interaction handlers
   const handleBuzz = () => {
@@ -402,22 +408,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
     }
   };
 
-  // Helper functions
-  const showNotification = (message, type = 'info', duration = 3000) => {
-    setNotification({
-      message,
-      type,
-      visible: true,
-      duration
-    });
-    
-    // Auto-hide notification after duration (if not persistent)
-    if (duration > 0) {
-      setTimeout(() => {
-        setNotification(prev => ({ ...prev, visible: false }));
-      }, duration);
-    }
-  };
+
 
   // Render different game states
   const renderGameContent = () => {
@@ -428,7 +419,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
           socket={socket}
           roundData={currentRound}
           playerData={{
-            _id: player?._id,
+            id: player?.id,
             score,
             rank,
             totalPlayers,
@@ -446,7 +437,7 @@ const PlayerGameInterface = ({ gameSessionId, onExit }) => {
           socket={socket}
           roundData={currentRound}
           playerData={{
-            _id: player?._id,
+            _id: player?.id,
             score,
             rank,
             totalPlayers,

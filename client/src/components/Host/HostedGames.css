@@ -1,0 +1,196 @@
+.hosted-games {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.hosted-games-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.hosted-games h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+  color: #333;
+}
+
+.clear-all-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+}
+
+.clear-all-btn:hover {
+  background-color: #d32f2f;
+}
+
+.clear-all-btn:disabled {
+  background-color: #e57373;
+  cursor: not-allowed;
+}
+
+.hosted-games-error {
+  background-color: #ffebee;
+  color: #d32f2f;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.hosted-games-loading {
+  text-align: center;
+  padding: 10px;
+  color: #666;
+}
+
+.hosted-games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.no-games {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.hosted-game-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: white;
+  border-radius: 6px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.game-info {
+  flex: 1;
+}
+
+.game-info h4 {
+  margin-top: 0;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.game-code {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+.game-status {
+  margin: 5px 0;
+  font-size: 0.9rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+  display: inline-block;
+}
+
+.status-created {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-lobby {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-active {
+  background-color: #fff8e1;
+  color: #f57f17;
+}
+
+.status-paused {
+  background-color: #ede7f6;
+  color: #4527a0;
+}
+
+.status-completed {
+  background-color: #f5f5f5;
+  color: #616161;
+}
+
+.status-unknown {
+  background-color: #f5f5f5;
+  color: #616161;
+}
+
+.player-count {
+  margin: 5px 0;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.game-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.resume-game-btn {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s;
+  flex: 1;
+}
+
+.resume-game-btn:hover {
+  background-color: #1976d2;
+}
+
+.delete-game-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s;
+  margin-left: 8px;
+}
+
+.delete-game-btn:hover {
+  background-color: #d32f2f;
+}
+
+.delete-game-btn:disabled {
+  background-color: #e57373;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .hosted-game-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .game-actions {
+    margin-top: 10px;
+    width: 100%;
+  }
+
+  .resume-game-btn {
+    width: 100%;
+  }
+}

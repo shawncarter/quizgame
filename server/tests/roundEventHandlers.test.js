@@ -12,7 +12,7 @@ const {
 // Mock models
 jest.mock('../models', () => ({
   GameSession: {
-    findById: jest.fn()
+    findByPk: jest.fn()
   },
   Question: {}
 }));
@@ -21,7 +21,7 @@ const { GameSession } = require('../models');
 
 // Create mock game session
 const createMockGameSession = (overrides = {}) => ({
-  _id: 'game123',
+  id: 'game123',
   code: 'TEST123',
   hostId: 'host123',
   status: 'active',
@@ -69,7 +69,7 @@ describe('Round Event Handlers', () => {
     mockGameSession = createMockGameSession();
     
     // Set up model mocks
-    GameSession.findById.mockResolvedValue(mockGameSession);
+    GameSession.findByPk.mockResolvedValue(mockGameSession);
     
     // Mock global objects
     global.activeQuestions = new Map();
@@ -93,8 +93,8 @@ describe('Round Event Handlers', () => {
       
       await handleRoundStart(mockSocket, data);
       
-      // Verify GameSession.findById was called
-      expect(GameSession.findById).toHaveBeenCalledWith('game123');
+      // Verify GameSession.findByPk was called
+      expect(GameSession.findByPk).toHaveBeenCalledWith('game123');
       
       // Verify game session was updated
       expect(mockGameSession.currentRound).toBe(1);
@@ -184,8 +184,8 @@ describe('Round Event Handlers', () => {
       
       await handleRoundEnd(mockSocket, data);
       
-      // Verify GameSession.findById was called
-      expect(GameSession.findById).toHaveBeenCalledWith('game123');
+      // Verify GameSession.findByPk was called
+      expect(GameSession.findByPk).toHaveBeenCalledWith('game123');
       
       // Verify round was updated
       expect(mockGameSession.rounds[0].status).toBe('completed');

@@ -1,97 +1,126 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
+module.exports = (sequelize, DataTypes) => {
+  const Category = sequelize.define('Category', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      validate: {
+        notEmpty: true
+      }
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    iconName: {
+      type: DataTypes.STRING,
+      defaultValue: 'question-mark'
+    },
+    color: {
+      type: DataTypes.STRING,
+      defaultValue: '#3498db'
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
+    },
+    parentCategoryId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Categories',
+        key: 'id'
+      }
+    },
+    difficulty: {
+      type: DataTypes.INTEGER,
+      defaultValue: 2,
+      validate: {
+        min: 1,
+        max: 5
+      }
+    },
+    questionCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    }
+  }, {
+    timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['name']
+      },
+      {
+        fields: ['parentCategoryId']
+      }
+    ]
+  });
 
-const CategorySchema = new Schema({
-  name: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
-  description: {
-    type: String,
-    trim: true
-  },
-  iconName: {
-    type: String,
-    default: 'question-mark'
-    // Name of the icon to display for this category
-  },
-  color: {
-    type: String,
-    default: '#3498db'
-    // Hex color code for the category
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-    // Whether this category is available for new games
-  },
-  parentCategory: {
-    type: Schema.Types.ObjectId,
-    ref: 'Category'
-    // For subcategories (e.g., "Classical Music" under "Music")
-  },
-  difficulty: {
-    type: Number, 
-    default: 2,
-    min: 1,
-    max: 5
-    // Difficulty rating from 1-5, useful for game balancing
-  },
-  questionCount: {
-    type: Number,
-    default: 0
-    // Number of questions in this category (updated via hooks)
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-// Method to get all subcategories
-CategorySchema.methods.getSubcategories = function() {
-  return this.model('Category').find({ parentCategory: this._id });
-};
-
-// Static method to get root categories (those without a parent)
-CategorySchema.statics.getRootCategories = function() {
-  return this.find({ parentCategory: { $exists: false } });
-};
-
-// Static method to get category hierarchy
-CategorySchema.statics.getCategoryHierarchy = async function() {
-  const rootCategories = await this.find({ parentCategory: { $exists: false } })
-    .sort({ name: 1 });
-  
-  const result = [];
-  
-  for (const rootCategory of rootCategories) {
-    const subcategories = await this.find({ parentCategory: rootCategory._id })
-      .sort({ name: 1 });
-    
-    result.push({
-      ...rootCategory.toObject(),
-      subcategories: subcategories
+  // After the model is defined, set up associations
+  Category.associate = (models) => {
+    Category.hasMany(models.Category, {
+      as: 'subcategories',
+      foreignKey: 'parentCategoryId'
     });
-  }
-  
-  return result;
+
+    Category.belongsTo(models.Category, {
+      as: 'parentCategory',
+      foreignKey: 'parentCategoryId'
+    });
+
+    // Note: Questions use string category field, not foreign key relationship
+  };
+
+  // Instance methods
+  Category.prototype.getSubcategories = function() {
+    return Category.findAll({
+      where: { parentCategoryId: this.id }
+    });
+  };
+
+  // Static methods
+  Category.getRootCategories = function() {
+    return Category.findAll({
+      where: { parentCategoryId: null }
+    });
+  };
+
+  Category.getCategoryHierarchy = async function() {
+    const rootCategories = await Category.findAll({
+      where: { parentCategoryId: null },
+      order: [['name', 'ASC']]
+    });
+
+    const result = [];
+
+    for (const rootCategory of rootCategories) {
+      const subcategories = await Category.findAll({
+        where: { parentCategoryId: rootCategory.id },
+        order: [['name', 'ASC']]
+      });
+
+      result.push({
+        ...rootCategory.toJSON(),
+        subcategories: subcategories
+      });
+    }
+
+    return result;
+  };
+
+  Category.getPopularCategories = function(limit = 10) {
+    return Category.findAll({
+      where: { isActive: true },
+      order: [['questionCount', 'DESC']],
+      limit
+    });
+  };
+
+  return Category;
 };
-
-// Static method to get popular categories
-CategorySchema.statics.getPopularCategories = function(limit = 10) {
-  return this.find({ isActive: true })
-    .sort({ questionCount: -1 })
-    .limit(limit);
-};
-
-// Create a text index for searching
-CategorySchema.index({ name: 'text', description: 'text' });
-
-module.exports = mongoose.model('Category', CategorySchema);

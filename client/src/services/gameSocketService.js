@@ -5,9 +5,7 @@
 import { io } from 'socket.io-client';
 import { useContext } from 'react';
 import { SocketContext } from '../context/SocketContext';
-
-// Base API URL from environment variables
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL, SOCKET_URL } from '../config/config';
 
 // Socket.io connection options
 const socketOptions = {
@@ -32,29 +30,8 @@ const createHostSocket = (playerId, gameSessionId) => {
   console.log('=== GAME SOCKET SERVICE - CREATE HOST SOCKET ===');
   console.log(`Creating host socket with playerId: ${playerId}, gameSessionId: ${gameSessionId}`);
 
-  // Use the window location to determine the base URL for the socket
-  // This ensures we're connecting to the same origin, which helps with WebSocket connections
-  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  const host = window.location.hostname;
-
-  // Get the port from the API_URL or use the default port
-  let port = '5000'; // Default server port
-
-  // Extract port from API_URL if available
-  if (API_URL) {
-    const apiUrlMatch = API_URL.match(/:(\d+)/);
-    if (apiUrlMatch && apiUrlMatch[1]) {
-      port = apiUrlMatch[1];
-      console.log(`Extracted port ${port} from API_URL: ${API_URL}`);
-    }
-  }
-
-  // If we're in development and using localhost, use the server port
-  // Otherwise, use the same port as the client (for production deployments)
-  const usePort = (host === 'localhost' || host === '127.0.0.1') ? `:${port}` : '';
-
-  // Construct the base URL
-  const baseUrl = `${protocol}//${host}${usePort}`;
+  // Use the SOCKET_URL from environment variables and ensure it doesn't have /api
+  const baseUrl = SOCKET_URL.includes('/api') ? SOCKET_URL.replace('/api', '') : SOCKET_URL;
 
   console.log(`Using socket base URL: ${baseUrl}`);
   console.log('Original API_URL from env:', API_URL);
@@ -66,10 +43,10 @@ const createHostSocket = (playerId, gameSessionId) => {
   const socketConfig = {
     ...socketOptions,
     path: '/socket.io',
-    transports: ['websocket'], // Try only websocket first to avoid polling issues
+    transports: ['websocket', 'polling'], // Allow polling fallback
     auth: {
       playerId,
-      gameSessionId,
+      gameSessionId: gameSessionId.trim(), // Clean the gameSessionId
       isHost: true
     }
   };
@@ -110,38 +87,18 @@ const createHostSocket = (playerId, gameSessionId) => {
  * @returns {Socket} Socket.io socket instance
  */
 const createPlayerSocket = (playerId, gameSessionId) => {
-  // Use the window location to determine the base URL for the socket
-  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  const host = window.location.hostname;
-
-  // Get the port from the API_URL or use the default port
-  let port = '5000'; // Default server port
-
-  // Extract port from API_URL if available
-  if (API_URL) {
-    const apiUrlMatch = API_URL.match(/:(\d+)/);
-    if (apiUrlMatch && apiUrlMatch[1]) {
-      port = apiUrlMatch[1];
-      console.log(`Extracted port ${port} from API_URL: ${API_URL}`);
-    }
-  }
-
-  // If we're in development and using localhost, use the server port
-  // Otherwise, use the same port as the client (for production deployments)
-  const usePort = (host === 'localhost' || host === '127.0.0.1') ? `:${port}` : '';
-
-  // Construct the base URL
-  const baseUrl = `${protocol}//${host}${usePort}`;
+  // Use the SOCKET_URL from environment variables and ensure it doesn't have /api
+  const baseUrl = SOCKET_URL.includes('/api') ? SOCKET_URL.replace('/api', '') : SOCKET_URL;
 
   console.log(`Using socket base URL for player: ${baseUrl}`);
 
   const socket = io(`${baseUrl}/player`, {
     ...socketOptions,
     path: '/socket.io',
-    transports: ['websocket'], // Try only websocket first to avoid polling issues
+    transports: ['websocket', 'polling'], // Allow polling fallback
     auth: {
       playerId,
-      gameSessionId,
+      gameSessionId: gameSessionId.trim(), // Clean the gameSessionId
       isHost: false
     }
   });
@@ -156,38 +113,18 @@ const createPlayerSocket = (playerId, gameSessionId) => {
  * @returns {Socket} Socket.io socket instance
  */
 const createGameSocket = (playerId, gameSessionId) => {
-  // Use the window location to determine the base URL for the socket
-  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  const host = window.location.hostname;
-
-  // Get the port from the API_URL or use the default port
-  let port = '5000'; // Default server port
-
-  // Extract port from API_URL if available
-  if (API_URL) {
-    const apiUrlMatch = API_URL.match(/:(\d+)/);
-    if (apiUrlMatch && apiUrlMatch[1]) {
-      port = apiUrlMatch[1];
-      console.log(`Extracted port ${port} from API_URL: ${API_URL}`);
-    }
-  }
-
-  // If we're in development and using localhost, use the server port
-  // Otherwise, use the same port as the client (for production deployments)
-  const usePort = (host === 'localhost' || host === '127.0.0.1') ? `:${port}` : '';
-
-  // Construct the base URL
-  const baseUrl = `${protocol}//${host}${usePort}`;
+  // Use the SOCKET_URL from environment variables and ensure it doesn't have /api
+  const baseUrl = SOCKET_URL.includes('/api') ? SOCKET_URL.replace('/api', '') : SOCKET_URL;
 
   console.log(`Using socket base URL for game: ${baseUrl}`);
 
   const socket = io(`${baseUrl}/game`, {
     ...socketOptions,
     path: '/socket.io',
-    transports: ['websocket'], // Try only websocket first to avoid polling issues
+    transports: ['websocket', 'polling'], // Allow polling fallback
     auth: {
       playerId,
-      gameSessionId
+      gameSessionId: gameSessionId.trim() // Clean the gameSessionId
     }
   });
 
@@ -264,11 +201,28 @@ const connectSocket = (socket) => {
         id: socket.id
       });
 
-      // If this is a websocket error, try polling instead
-      if (error.message === 'websocket error' && socket.io.opts.transports[0] === 'websocket') {
+      // Check if this is an authentication error
+      if (error.message && error.message.includes('Authentication')) {
+        console.error('Authentication error detected. Check player ID and game session ID.');
+        console.error('Auth data:', socket.auth);
+        
+        // Still try to continue with polling as fallback
+      }
+      
+      // If this is a websocket error or we've had a connection issue, try polling instead
+      if ((error.message === 'websocket error' || error.message.includes('timeout')) && 
+          socket.io.opts.transports[0] === 'websocket') {
         console.log('Websocket connection failed, falling back to polling...');
         socket.io.opts.transports = ['polling', 'websocket'];
-
+        
+        // Give it a little more time before rejecting
+        setTimeout(() => {
+          if (!socket.connected) {
+            clearTimeout(connectionTimeout);
+            reject(error);
+          }
+        }, 3000);
+        
         // Don't reject yet, let it try polling
         return;
       }
@@ -334,6 +288,10 @@ const setupGameMasterHandlers = (socket, handlers) => {
   socket.on('player:buzzer', handlers.onPlayerBuzzer || (() => {}));
   socket.on('player:answer', handlers.onPlayerAnswer || (() => {}));
   socket.on('player:status', handlers.onPlayerStatus || (() => {}));
+
+  // New events for test players and game updates
+  socket.on('playersUpdated', handlers.onPlayersUpdated || (() => {}));
+  socket.on('gameUpdated', handlers.onGameUpdated || (() => {}));
 
   // Error events
   socket.on('error', handlers.onError || (() => {}));

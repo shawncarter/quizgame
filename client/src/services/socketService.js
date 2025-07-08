@@ -1,7 +1,6 @@
 import { io } from 'socket.io-client';
 import { initErrorHandling } from './socketErrorHandler';
-
-const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+import { SOCKET_URL } from '../config/config';
 
 class SocketService {
   constructor() {
