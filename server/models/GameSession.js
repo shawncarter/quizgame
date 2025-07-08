@@ -36,6 +36,10 @@ const GameSessionSchema = new Schema({
     }
   }],
   rounds: [{
+    roundNumber: {
+      type: Number,
+      required: true
+    },
     type: {
       type: String,
       enum: ['pointBuilder', 'graduatedPoints', 'fastestFinger', 'specialist'],
@@ -59,6 +63,15 @@ const GameSessionSchema = new Schema({
     timeLimit: {
       type: Number,  // Time limit per question in seconds
       default: 30
+    },
+    startTime: {
+      type: Date
+    },
+    endTime: {
+      type: Date
+    },
+    results: {
+      type: Schema.Types.Mixed  // Flexible results object
     }
   }],
   status: {
@@ -87,6 +100,9 @@ const GameSessionSchema = new Schema({
   currentRound: {
     type: Number,
     default: 0
+  },
+  currentRoundType: {
+    type: String
   },
   currentQuestion: {
     type: Number,

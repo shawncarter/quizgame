@@ -61,23 +61,48 @@ async function handleRoundStart(socket, data) {
     // Initialize round settings based on type
     const roundSettings = getRoundSettings(roundType, data);
     
+    // Map round type to database enum values
+    const roundTypeMap = {
+      'point-builder': 'pointBuilder',
+      'fastest-finger': 'fastestFinger',
+      'graduated-points': 'graduatedPoints',
+      'specialist': 'specialist'
+    };
+    
+    const dbRoundType = roundTypeMap[roundType];
+    if (!dbRoundType) {
+      throw createSocketError(`Invalid round type: ${roundType}`, 'INVALID_ROUND_TYPE');
+    }
+    
+    // Generate title based on round type
+    const roundTitles = {
+      'point-builder': 'Point Builder Round',
+      'fastest-finger': 'Fastest Finger First',
+      'graduated-points': 'Graduated Points Round',
+      'specialist': 'Specialist Round'
+    };
+    
     // Find or create round in rounds array
     let currentRound = gameSession.rounds.find(r => r.roundNumber === roundNumber);
     if (!currentRound) {
       currentRound = {
-        roundNumber,
-        roundType,
-        startTime: new Date(),
+        roundNumber: roundNumber,
+        type: dbRoundType,
+        title: roundTitles[roundType] || `Round ${roundNumber}`,
+        description: `${roundTitles[roundType]} - ${roundNumber}`,
         questions: [],
-        settings: roundSettings,
-        status: 'active'
+        timeLimit: roundSettings.timeLimit || 30,
+        completed: false,
+        startTime: new Date()
       };
       gameSession.rounds.push(currentRound);
     } else {
       // Update existing round
-      currentRound.roundType = roundType;
-      currentRound.settings = roundSettings;
-      currentRound.status = 'active';
+      currentRound.type = dbRoundType;
+      currentRound.title = roundTitles[roundType] || `Round ${roundNumber}`;
+      currentRound.description = `${roundTitles[roundType]} - ${roundNumber}`;
+      currentRound.timeLimit = roundSettings.timeLimit || 30;
+      currentRound.completed = false;
       currentRound.startTime = new Date();
     }
     
@@ -279,7 +304,7 @@ async function handleRoundEnd(socket, data) {
     const roundResults = calculateRoundResults(gameSession, currentRound);
     
     // Update round status
-    currentRound.status = 'completed';
+    currentRound.completed = true;
     currentRound.endTime = new Date();
     currentRound.results = roundResults;
     
